@@ -19,7 +19,6 @@ const GIFTS_CONFIG = [
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
 
-// REUSABLE PREMIUM LOGO COMPONENT
 const BrandLogo = () => (
     <div className="brand-logo fancy-dhivehi">
         ޅޮހި<span>ނޫރު</span>
@@ -71,7 +70,7 @@ export default function App() {
   useEffect(() => {
     fetchLatestWinner();
     fetchPartners(); 
-    fetchLeaderboards(); // LOAD BOTH LEADERBOARDS ON START
+    fetchLeaderboards();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); fetchProfileDetails(session.user.id); }
@@ -146,7 +145,7 @@ export default function App() {
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 4).length; // 4 or 5 out of 5
+                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; // Pass math if score >= 3
                 calculatedCoins += (passedMath * 5);
             }
         }
@@ -182,18 +181,12 @@ export default function App() {
 
   const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data); };
   
-  // Fetch BOTH leaderboards so they show up on the Progress Page
   const fetchLeaderboards = async () => {
       const activeDate = getActiveQuizDate();
-      
-      const { data: genData } = await supabase.from('lhohinoor_quiz_attempts')
-          .select('username, score').eq('created_at', activeDate)
-          .order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+      const { data: genData } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
       setLeaderboard(genData || []);
 
-      const { data: mData } = await supabase.from('lhohinoor_math_attempts')
-          .select('username, score').eq('created_at', activeDate)
-          .order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+      const { data: mData } = await supabase.from('lhohinoor_math_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
       setMathLeaderboard(mData || []);
   };
 
@@ -321,16 +314,15 @@ export default function App() {
     setQuizLoading(false);
   };
 
-  // --- MATH CHALLENGE (GRADE BASED, 5 QUESTIONS, 1 ATTEMPT) ---
+  // --- MATH CHALLENGE ---
   const startMathQuiz = async () => {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
       const activeDate = getActiveQuizDate();
 
       const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
-      if (attErr) { showToast("Database error, have you created the tables?", "error"); setQuizLoading(false); return; }
+      if (attErr) { showToast("Database error. Have you created the tables?", "error"); setQuizLoading(false); return; }
       
-      // ONLY 1 ATTEMPT PER DAY
       if (attempts && attempts.length >= 1) {
           showToast("މިއަދުގެ ފުރުޞަތު ވަނީ ބޭނުންކޮށްފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return;
@@ -339,7 +331,6 @@ export default function App() {
       const { data: qData, error: qErr } = await supabase.from('lhohinoor_math_questions').select('*').eq('grade', profileData.grade);
       
       if (qErr) { showToast("Database Error. Tables not found.", "error"); setQuizLoading(false); return; }
-      
       if (!qData || qData.length < 1) {
           showToast("މި ގްރޭޑަށް އަދި ސުވާލުތައް އަޕްލޯޑްކޮށްފައެއް ނުވޭ.", "warning");
           setQuizLoading(false); return;
@@ -396,23 +387,32 @@ export default function App() {
 
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
 
-  // EXTREMELY SAFE ENROLLMENT CHECK for the Golden VIP Button
+  // 🔥 EXTREMELY SAFE ENROLLMENT CHECK 🔥
   const isEnrolledInQuran = profileData && (
-      (profileData.level && profileData.level.trim().length > 0) || 
-      (profileData.category && profileData.category.trim().length > 0) || 
-      (profileData.recitation && profileData.recitation.trim().length > 0) ||
-      (profileData.marks && String(profileData.marks).trim().length > 0)
+      (profileData.level && String(profileData.level).trim() !== '' && profileData.level !== 'N/A') || 
+      (profileData.category && String(profileData.category).trim() !== '' && profileData.category !== 'N/A') || 
+      (profileData.recitation && String(profileData.recitation).trim() !== '' && profileData.recitation !== 'N/A') ||
+      (profileData.marks && String(profileData.marks).trim() !== '')
   );
 
   return (
     <div style={styles.appContainer}>
       <style>
         {`
-        /* GLOBAL FARUMA FONT APPLICATION */
-        @font-face { font-family: 'Faruma'; src: url('/faruma.ttf') format('truetype'); font-weight: normal; font-style: normal; }
-        * { font-family: 'Faruma', sans-serif; }
-        .fancy-dhivehi { font-family: 'Faruma', sans-serif !important; }
-        .ltr-text { font-family: sans-serif !important; direction: ltr; unicode-bidi: embed; text-align: right; display: inline-block; width: 100%; }
+        /* GLOBAL FARUMA FONT OVERRIDE */
+        @font-face { 
+            font-family: 'Faruma'; 
+            src: local('Faruma'), url('/faruma.ttf') format('truetype'), url('/Faruma.ttf') format('truetype'); 
+            font-display: swap; 
+        }
+        
+        body, html, #root, div, span, h1, h2, h3, h4, p, a, button, input, select, textarea, table, th, td {
+            font-family: 'Faruma', Arial, sans-serif !important;
+        }
+
+        .ltr-text, .ltr-text * {
+            font-family: Arial, sans-serif !important;
+        }
 
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
@@ -468,15 +468,15 @@ export default function App() {
         .gift-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-top: 15px; }
         .gift-card { background: white; border: 1px solid #eee; border-radius: 12px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 
-        .official-slip-table td { padding: 8px 0; border-bottom: 1px solid #eee; }
+        .official-slip-table td { padding: 10px 0; border-bottom: 1px dashed #eee; }
         .official-slip-table tr:last-child td { border-bottom: none; }
-        .slip-label { color: #555; width: 35%; font-size: 13px; }
-        .slip-value { font-weight: bold; color: #000; font-size: 14px; }
+        .slip-label { color: #555; width: 40%; font-size: 14px; }
+        .slip-value { font-weight: bold; color: #000; font-size: 15px; }
         
-        .leaderboard-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
-        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; }
-        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; }
-        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; }
+        .leaderboard-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 15px; }
+        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; font-size: 18px; }
+        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
+        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
         `}
       </style>
 
@@ -503,7 +503,7 @@ export default function App() {
       )}
       
       <div style={styles.navbar}>
-        <div style={styles.logo} className="fancy-dhivehi" onClick={() => setView('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
+        <div style={styles.logo} onClick={() => setView('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
         <div style={{display:'flex', gap:10}}>
            <button onClick={() => setView('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
            <button onClick={() => setView('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
@@ -563,7 +563,7 @@ export default function App() {
                   <svg width="40" height="40" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
               </div>
               <BrandLogo />
-              <p className="fancy-dhivehi" style={{color: '#555', marginTop: '-10px', fontSize: '18px', fontWeight: 'bold'}}>އުނގެނުމުގެ އާ ދަތުރެއް</p>
+              <p style={{color: '#555', marginTop: '-10px', fontSize: '18px', fontWeight: 'bold'}}>އުނގެނުމުގެ އާ ދަތުރެއް</p>
           </div>
 
           {dailyWinner && showWinnerCard && (
@@ -938,23 +938,24 @@ export default function App() {
                 <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
                     <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
                         <div style={{position:'absolute', top:0, right:0, background:'#0056b3', color:'white', padding:'5px 15px', borderBottomLeftRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>ޤުރުއާން މުބާރާތް</div>
-                        <BrandLogo />
+                        
                         <div style={{textAlign:'center', marginBottom: '20px', borderBottom: '2px dashed #ccc', paddingBottom: '15px'}}>
-                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
+                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގެ ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
                             <p style={{margin:0, color:'#666', fontSize:'13px'}}>The Secretariat of the Lhohi Council</p>
                         </div>
+
                         <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
                             <tbody>
-                                <tr><td className="slip-label">ނަން:</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
-                                <tr><td className="slip-label">އައި.ޑީ ކާޑު:</td><td className="slip-value"><span className="ltr-text">{profileData.id_card || '-'}</span></td></tr>
-                                <tr><td className="slip-label">ގްރޭޑް/އުމުރު:</td><td className="slip-value">{profileData.grade || '-'}</td></tr>
-                                <tr><td className="slip-label">ބައި:</td><td className="slip-value">{profileData.level || '-'}</td></tr>
-                                <tr><td className="slip-label">ކިޔަވާ ގޮތް:</td><td className="slip-value">{profileData.category || '-'}</td></tr>
-                                <tr><td className="slip-label">ކިޔަވާ ތަން:</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
-                                <tr><td className="slip-label">ބެލެނިވެރިޔާ:</td><td className="slip-value">{profileData.parent_name !== 'N/A' ? profileData.parent_name : '-'}</td></tr>
-                                <tr><td className="slip-label">އެޑްރެސް:</td><td className="slip-value">{profileData.parent_address || '-'}</td></tr>
-                                <tr><td className="slip-label">ފޯނު:</td><td className="slip-value"><span className="ltr-text">{profileData.parent_phone || '-'}</span></td></tr>
-                                <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '15px'}}>މާކްސް:</td><td className="slip-value" style={{paddingTop: '15px', fontSize: '20px', color: '#d32f2f'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
+                                <tr><td className="slip-label">ނަން (Name):</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
+                                <tr><td className="slip-label">އައި.ޑީ ކާޑު (ID):</td><td className="slip-value"><span className="ltr-text">{profileData.id_card || '-'}</span></td></tr>
+                                <tr><td className="slip-label">ގްރޭޑް/އުމުރު (Grade/Age):</td><td className="slip-value">{profileData.grade || '-'}</td></tr>
+                                <tr><td className="slip-label">ބައި (Level):</td><td className="slip-value">{profileData.level || '-'}</td></tr>
+                                <tr><td className="slip-label">ކިޔަވާ ގޮތް (Category):</td><td className="slip-value">{profileData.category || '-'}</td></tr>
+                                <tr><td className="slip-label">ކިޔަވާ ތަން (Recitation):</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
+                                <tr><td className="slip-label">ބެލެނިވެރިޔާ (Parent):</td><td className="slip-value">{profileData.parent_name !== 'N/A' ? profileData.parent_name : '-'}</td></tr>
+                                <tr><td className="slip-label">އެޑްރެސް (Address):</td><td className="slip-value">{profileData.parent_address || '-'}</td></tr>
+                                <tr><td className="slip-label">ފޯނު (Phone):</td><td className="slip-value"><span className="ltr-text">{profileData.parent_phone || '-'}</span></td></tr>
+                                <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '15px'}}>މާކްސް (Marks):</td><td className="slip-value" style={{paddingTop: '15px', fontSize: '20px', color: '#d32f2f'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
                             </tbody>
                         </table>
                     </div>
