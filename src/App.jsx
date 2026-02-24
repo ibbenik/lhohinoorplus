@@ -19,6 +19,7 @@ const GIFTS_CONFIG = [
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
 
+// REUSABLE PREMIUM LOGO COMPONENT
 const BrandLogo = () => (
     <div className="brand-logo fancy-dhivehi">
         ޅޮހި<span>ނޫރު</span>
@@ -27,6 +28,30 @@ const BrandLogo = () => (
 
 export default function App() {
   const [view, setView] = useState('home'); 
+  const [dashView, setDashView] = useState('overview'); 
+
+  // 🔥 NEW: BROWSER BACK BUTTON SUPPORT 🔥
+  const navigateTo = (newView, newDashView = 'overview') => {
+      window.history.pushState({ view: newView, dashView: newDashView }, '', '');
+      setView(newView);
+      setDashView(newDashView);
+  };
+
+  useEffect(() => {
+      const handlePopState = (e) => {
+          if (e.state && e.state.view) {
+              setView(e.state.view);
+              if (e.state.dashView) setDashView(e.state.dashView);
+          } else {
+              setView('home');
+          }
+      };
+      window.addEventListener('popstate', handlePopState);
+      window.history.replaceState({ view: 'home', dashView: 'overview' }, '', '');
+      return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+
   const [dailyWinner, setDailyWinner] = useState(null);
   const [showWinnerCard, setShowWinnerCard] = useState(true);
   const [appMessage, setAppMessage] = useState({ show: false, type: '', text: '' });
@@ -41,7 +66,6 @@ export default function App() {
   const [user, setUser] = useState(null); 
   const [profileData, setProfileData] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [dashView, setDashView] = useState('overview'); 
   
   // --- GENERAL QUIZ STATE ---
   const [quizState, setQuizState] = useState('intro'); 
@@ -70,15 +94,15 @@ export default function App() {
   useEffect(() => {
     fetchLatestWinner();
     fetchPartners(); 
-    fetchLeaderboards();
+    fetchLeaderboards(); 
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); fetchProfileDetails(session.user.id); }
     });
     supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'PASSWORD_RECOVERY') { setView('auth'); setAuthMode('update_password'); showToast('އައު ޕާސްވޯޑެއް ޖައްސަވާ!', 'success'); }
+        if (event === 'PASSWORD_RECOVERY') { navigateTo('auth'); setAuthMode('update_password'); showToast('އައު ޕާސްވޯޑެއް ޖައްސަވާ!', 'success'); }
         if (event === 'SIGNED_IN' && session) { setUser(session.user); fetchProfileDetails(session.user.id); }
-        if (event === 'SIGNED_OUT') { setUser(null); setProfileData(null); setView('home'); prevBadgeCountRef.current = 0; }
+        if (event === 'SIGNED_OUT') { setUser(null); setProfileData(null); navigateTo('home'); prevBadgeCountRef.current = 0; }
     });
     setWinnerDate(getActiveQuizDate());
   }, []);
@@ -171,11 +195,11 @@ export default function App() {
         
         setProfileData(enrichedData);
         
-        if (isMissing) { setView('profile_setup'); } 
-        else if (view !== 'quiz' && view !== 'math_quiz') { setView('dashboard'); }
+        if (isMissing) { navigateTo('profile_setup'); } 
+        else if (view !== 'quiz' && view !== 'math_quiz') { navigateTo('dashboard'); }
     } else {
         setProfileData({ student_name: "", id_card: "", parent_phone: "", parent_address: "", grade: "", isMissing: true });
-        setView('profile_setup');
+        navigateTo('profile_setup');
     }
   };
 
@@ -207,7 +231,7 @@ export default function App() {
     try {
       const d = Object.fromEntries(new FormData(e.target));
       if (authMode === 'login' && (d.login_identifier === 'admin@lhohi.mv' || d.login_identifier.toUpperCase() === 'ADMIN01') && d.password === 'admin123') { 
-          setView('admin'); loadAdminData(); setLoading(false); return; 
+          navigateTo('admin'); loadAdminData(); setLoading(false); return; 
       }
       if (authMode === 'signup') {
           if (d.password.length < 6) { showToast('ޕާސްވޯޑްގައި މަދުވެގެން 6 އަކުރު ހުންނަންވާނެ.', 'error'); setLoading(false); return; }
@@ -261,24 +285,24 @@ export default function App() {
       const d = Object.fromEntries(new FormData(e.target));
       const safePayload = { business_name: d.business_name, phone: d.phone };
       const { error } = await supabase.from('lhohinoor_partner_requests').insert([safePayload]);
-      if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else { showToast('ފޯމު ފޮނުވިއްޖެ! ވަރަށް އަވަހަށް ގުޅާނަން.', 'success'); setView('home'); }
+      if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else { showToast('ފޯމު ފޮނުވިއްޖެ! ވަރަށް އަވަހަށް ގުޅާނަން.', 'success'); navigateTo('home'); }
       setLoading(false);
   };
 
   // --- GENERAL QUIZ ---
   const startQuiz = async () => {
-    if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); setView('auth'); setAuthMode('login'); return; }
+    if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
     const activeDate = getActiveQuizDate(); 
     const { data: existing } = await supabase.from('lhohinoor_quiz_attempts').select('phone').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
     
-    if (existing && existing.length > 0) { showToast("މިއަދުގެ ކުއިޒްގައި ވަނީ ބައިވެރިވެފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); setView('dashboard'); setDashView('progress'); setQuizLoading(false); return; }
+    if (existing && existing.length > 0) { showToast("މިއަދުގެ ކުއިޒްގައި ވަނީ ބައިވެރިވެފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); navigateTo('dashboard', 'progress'); setQuizLoading(false); return; }
 
     const { data, error } = await supabase.from('lhohinoor_questions').select('*').eq('quiz_date', activeDate);
     if (error) { showToast("System Error.", "error"); setQuizLoading(false); return; }
     if (data && data.length > 0) {
       const randomFive = data.sort(() => 0.5 - Math.random()).slice(0, 5);
-      setQuestions(randomFive); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuizState('playing'); setView('quiz');
+      setQuestions(randomFive); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuizState('playing'); navigateTo('quiz');
     } else { 
       const now = new Date();
       if (now.getHours() >= 9 && now.getMinutes() >= 30) { showToast("މިއަދުގެ ސުވާލުތައް އަދި އަޕްލޯޑް ނުކުރޭ.", "warning"); } else { showToast("މިއަދުގެ ސުވާލުތައް ބަންދުވެއްޖެ. އައު ސުވާލުތައް 09:30 ގައި ލިބޭނެ.", "warning"); }
@@ -314,7 +338,7 @@ export default function App() {
     setQuizLoading(false);
   };
 
-  // --- MATH CHALLENGE ---
+  // --- MATH CHALLENGE (ENGLISH STYLING, 5 QUESTIONS, 1 ATTEMPT) ---
   const startMathQuiz = async () => {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
@@ -338,7 +362,7 @@ export default function App() {
 
       const randomFive = qData.sort(() => 0.5 - Math.random()).slice(0, 5);
       setMathQuestions(randomFive); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); 
-      setMathState('playing'); setView('math_quiz');
+      setMathState('playing'); navigateTo('math_quiz');
       setQuizLoading(false);
   };
 
@@ -387,7 +411,7 @@ export default function App() {
 
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
 
-  // 🔥 EXTREMELY SAFE ENROLLMENT CHECK 🔥
+  // EXTREMELY SAFE ENROLLMENT CHECK
   const isEnrolledInQuran = profileData && (
       (profileData.level && String(profileData.level).trim() !== '' && profileData.level !== 'N/A') || 
       (profileData.category && String(profileData.category).trim() !== '' && profileData.category !== 'N/A') || 
@@ -468,15 +492,15 @@ export default function App() {
         .gift-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-top: 15px; }
         .gift-card { background: white; border: 1px solid #eee; border-radius: 12px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 
-        .official-slip-table td { padding: 10px 0; border-bottom: 1px dashed #eee; }
+        .official-slip-table td { padding: 8px 0; border-bottom: 1px solid #eee; }
         .official-slip-table tr:last-child td { border-bottom: none; }
-        .slip-label { color: #555; width: 40%; font-size: 14px; }
-        .slip-value { font-weight: bold; color: #000; font-size: 15px; }
+        .slip-label { color: #555; width: 35%; font-size: 13px; }
+        .slip-value { font-weight: bold; color: #000; font-size: 14px; }
         
-        .leaderboard-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 15px; }
-        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; font-size: 18px; }
-        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
-        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
+        .leaderboard-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; }
+        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; }
+        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; }
         `}
       </style>
 
@@ -503,14 +527,14 @@ export default function App() {
       )}
       
       <div style={styles.navbar}>
-        <div style={styles.logo} onClick={() => setView('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
+        <div style={styles.logo} onClick={() => navigateTo('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
         <div style={{display:'flex', gap:10}}>
-           <button onClick={() => setView('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
-           <button onClick={() => setView('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
+           <button onClick={() => navigateTo('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
+           <button onClick={() => navigateTo('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
            {user && !profileData?.isMissing ? (
-               <button onClick={() => {setView('dashboard'); setDashView('overview');}} style={{...styles.navBtn, color: '#0056b3'}}>ޑޭޝްބޯޑު</button>
+               <button onClick={() => {navigateTo('dashboard', 'overview');}} style={{...styles.navBtn, color: '#0056b3'}}>ޑޭޝްބޯޑު</button>
            ) : (
-               !user && <button onClick={() => { setView('auth'); setAuthMode('login'); setAuthMessage({type:'', text:''}); }} style={styles.navBtn}>ލޮގިން</button>
+               !user && <button onClick={() => { navigateTo('auth'); setAuthMode('login'); setAuthMessage({type:'', text:''}); }} style={styles.navBtn}>ލޮގިން</button>
            )}
         </div>
       </div>
@@ -535,7 +559,7 @@ export default function App() {
                       <li style={{marginBottom: '8px', fontSize: '14px', position: 'relative', paddingRight: '20px'}}>ފޯނު ނަންބަރު ވާންވާނީ ޞައްޙަ، ރާއްޖޭގެ ނަންބަރަކަށެވެ.<span style={{position: 'absolute', right: 0}}>✔️</span></li>
                   </ul>
               </div>
-              <button onClick={() => setView('home')} style={{...styles.btnSecondary, marginTop: '10px'}}>ފުރަތަމަ ޞަފުޙާއަށް</button>
+              <button onClick={() => navigateTo('home')} style={{...styles.btnSecondary, marginTop: '10px'}}>ފުރަތަމަ ޞަފުޙާއަށް</button>
           </div>
         </div>
       )}
@@ -549,7 +573,7 @@ export default function App() {
                    <input name="business_name" placeholder="ނަން / ކުންފުނި" style={styles.input} required />
                    <input name="phone" placeholder="ގުޅޭނެ ނަންބަރު" type="tel" maxLength="7" onChange={handlePhoneInput} style={styles.inputLtr} required />
                    <button type="submit" disabled={loading} style={styles.btn}>{loading ? 'ފޮނުވަނީ...' : 'ރިކުއެސްޓް ފޮނުވާ'}</button>
-                   <button type="button" onClick={() => setView('home')} style={styles.btnSecondary}>ފަހަތަށް</button>
+                   <button type="button" onClick={() => navigateTo('home')} style={styles.btnSecondary}>ފަހަތަށް</button>
                </form>
             </div>
           </div>
@@ -573,7 +597,7 @@ export default function App() {
               <h3 style={{margin:'5px 0', fontSize:'16px'}}>މިއަދުގެ ނަސީބުވެރިޔާ</h3>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '10px 0' }}>
                   <h2 style={{color:'#2e7d32', margin: 0, fontSize: '24px'}}>{dailyWinner.username}</h2>
-                  <div style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#fff', color: '#d32f2f', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: '20px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(211,47,47,0.1)', transition: 'all 0.2s ease', fontSize: '14px', userSelect: 'none'}} onClick={handleCongratulate}>❤️ <span style={{fontFamily: 'sans-serif', fontWeight: 'bold', fontSize: '13px', color: '#c62828'}}>{dailyWinner.congrats_count || 0}</span></div>
+                  <div style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#fff', color: '#d32f2f', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: '20px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(211,47,47,0.1)', transition: 'all 0.2s ease', fontSize: '14px', userSelect: 'none'}} onClick={handleCongratulate}>❤️ <span className="ltr-text" style={{fontWeight: 'bold', fontSize: '13px', color: '#c62828', width: 'auto'}}>{dailyWinner.congrats_count || 0}</span></div>
               </div>
               <p style={{fontSize:'14px', margin:'10px 0', fontWeight: 'bold'}}>🎁 {dailyWinner.prize}</p>
             </div>
@@ -581,28 +605,32 @@ export default function App() {
           
           <div style={styles.grid}>
             
+            {/* GENERAL QUIZ CARD */}
             <div style={styles.card} className="animate-card">
-                <img src="https://i.pinimg.com/736x/cd/5b/17/cd5b1758007ccefc5122105d2b8e658e.jpg" alt="Quiz" style={styles.cardImg}/>
+                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={styles.btn} onClick={startQuiz}>{user && profileData && !profileData.isMissing ? 'ކުއިޒް ފަށަމާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
             
+            {/* MATHS CHALLENGE CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600" alt="Math" style={styles.cardImg}/>
-                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h3>
+                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz}>{user && profileData && !profileData.isMissing ? 'ޗެލެންޖް ފަށާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
 
+            {/* QURAN CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=600" alt="Quran" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>📖 ޤުރުއާން މުބާރާތް</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>މުބާރާތުގެ މަޢުލޫމާތާއި ނަތީޖާ</p>
-                <button style={styles.btn} onClick={() => { user && !profileData?.isMissing ? (() => {setView('dashboard'); setDashView('programs');})() : (() => { setView('auth'); setAuthMode('login'); })(); }}>ލޮގިން / ސްޓޫޑެންޓް ހަބް</button>
+                <button style={styles.btn} onClick={() => { user && !profileData?.isMissing ? (() => {navigateTo('dashboard', 'programs');})() : (() => { navigateTo('auth'); setAuthMode('login'); })(); }}>ލޮގިން / ސްޓޫޑެންޓް ހަބް</button>
             </div>
           </div>
 
+          {/* PARTNERS & FOOTER */}
           <div style={styles.partnerSection} className="animate-card">
               <h3 style={{color:'#2e7d32'}}>ބައިވެރިން</h3>
               <div style={styles.sponsorGrid}>
@@ -613,14 +641,14 @@ export default function App() {
                   )) : <p style={{fontSize: '12px', color: '#999', gridColumn: '1 / -1'}}>ބައިވެރިންގެ މަޢުލޫމާތު ލޯޑުކުރަނީ...</p>}
               </div>
               
-              <p onClick={() => setView('partner_form')} style={styles.simpleLink}>ބައިވެރިއަކަށް ވެލައްވާ</p>
+              <p onClick={() => navigateTo('partner_form')} style={styles.simpleLink}>ބައިވެރިއަކަށް ވެލައްވާ</p>
               
               <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #eee', fontSize: '11px', color: '#888', lineHeight: '1.4' }}>
                   <p style={{ margin: '0 0 3px 0', color: '#2e7d32', fontWeight: 'bold' }}>
                       © {new Date().getFullYear()} ޅޮހިނޫރު - LhohiNoor
                   </p>
                   <p style={{ margin: '0 0 3px 0' }}>The Secretariat of the Lhohi Council</p>
-                  <p style={{ margin: 0, fontSize: '9px', fontFamily: 'sans-serif', letterSpacing: '0.5px' }}>ALL RIGHTS RESERVED</p>
+                  <p className="ltr-text" style={{ margin: 0, fontSize: '9px', letterSpacing: '0.5px' }}>ALL RIGHTS RESERVED</p>
               </div>
           </div>
 
@@ -666,7 +694,7 @@ export default function App() {
                 </>
               )}
             </form>
-            <button onClick={() => setView('home')} style={{...styles.btnSecondary, marginTop:10}}>ކެންސަލް</button>
+            <button onClick={() => navigateTo('home')} style={{...styles.btnSecondary, marginTop:10}}>ކެންސަލް</button>
           </div>
         </div>
       )}
@@ -721,17 +749,17 @@ export default function App() {
             <div className="dash-topbar animate-card">
                 <div className="dash-stat">
                     <svg width="24" height="24" fill="none" stroke="#FFD700" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-3-4h6"/></svg>
-                    <h3>{profileData.total_coins || 0}</h3>
+                    <h3 className="ltr-text">{profileData.total_coins || 0}</h3>
                     <p>ކޮއިން</p>
                 </div>
                 <div className="dash-stat" style={{borderLeft: '1px solid rgba(255,255,255,0.3)', borderRight: '1px solid rgba(255,255,255,0.3)', padding: '0 20px'}}>
                     <svg width="24" height="24" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15l-3 3-1-4-4-1 3-3-1-4 4 1 3-3 3 3 4-1-1 4 3 3-4 1-1 4-3-3z"/></svg>
-                    <h3>{profileData.unlocked_badges || 0}</h3>
+                    <h3 className="ltr-text">{profileData.unlocked_badges || 0}</h3>
                     <p>ބެޖް</p>
                 </div>
                 <div className="dash-stat">
                     <svg width="24" height="24" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    <h3>{profileData.total_certificates || 0}</h3>
+                    <h3 className="ltr-text">{profileData.total_certificates || 0}</h3>
                     <p>ސެޓްފިކެޓް</p>
                 </div>
             </div>
@@ -742,7 +770,7 @@ export default function App() {
                     
                     {/* 🔥 THE GOLDEN VIP QURAN SLIP BUTTON 🔥 */}
                     {isEnrolledInQuran && (
-                        <div className="dash-menu-btn" onClick={() => setDashView('quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
+                        <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
                             <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
@@ -753,26 +781,29 @@ export default function App() {
                         </div>
                     )}
 
-                    <div className="dash-menu-btn" onClick={() => setDashView('profile')}>
+                    <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'profile')}>
                         <div className="dash-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                         </div>
                         <div><p className="dash-menu-title">މަގޭ ޕްރޮފައިލް</p><p className="dash-menu-sub">މަޢުލޫމާތު ބަދަލުކުރުމަށް</p></div>
                     </div>
-                    <div className="dash-menu-btn" onClick={() => setDashView('progress')}>
+                    
+                    {/* LEADERBOARDS FETCH ON PROGRESS CLICK */}
+                    <div className="dash-menu-btn" onClick={() => { fetchLeaderboards(); navigateTo('dashboard', 'progress'); }}>
                         <div className="dash-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                         </div>
                         <div><p className="dash-menu-title">މަގޭ ނަތީޖާ އާއި ކާމިޔާބީ</p><p className="dash-menu-sub">ލީޑަރބޯޑް، ބެޖް އަދި ސެޓްފިކެޓް</p></div>
                     </div>
-                    <div className="dash-menu-btn" onClick={() => setDashView('programs')}>
+
+                    <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'programs')}>
                         <div className="dash-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                         </div>
                         <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ހިސާބު</p></div>
                     </div>
                     
-                    <div className="dash-menu-btn" onClick={() => setDashView('gift_shop')} style={{borderColor: '#ff9800'}}>
+                    <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'gift_shop')} style={{borderColor: '#ff9800'}}>
                         <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}>
                             <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>
                         </div>
@@ -785,7 +816,7 @@ export default function App() {
             {dashView === 'profile' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
-                        <button onClick={() => setDashView('overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
+                        <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0}}>މަގޭ ޕްރޮފައިލް</h3>
                     </div>
 
@@ -822,11 +853,11 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: MY PROGRESS & REWARDS (NOW HAS LEADERBOARDS) */}
+            {/* VIEW: MY PROGRESS & REWARDS (WITH LIVE LEADERBOARDS) */}
             {dashView === 'progress' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
-                        <button onClick={() => setDashView('overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
+                        <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0}}>މަގޭ ނަތީޖާ</h3>
                     </div>
                     
@@ -846,7 +877,7 @@ export default function App() {
                                     <div key={badge.id} className={`badge-item ${isUnlocked ? 'badge-unlocked' : 'badge-locked'}`} title={badge.name}>
                                         <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '40px'}}>{badge.icon}</div>
                                         <span style={{fontSize: '9px', marginTop:'5px', fontWeight: 'bold', textAlign:'center'}}>{badge.name}</span>
-                                        {!isUnlocked && <span style={{fontSize: '10px', color:'#d32f2f', fontWeight:'bold', marginTop:'2px'}}>🔒 {badge.cost} 🪙</span>}
+                                        {!isUnlocked && <span className="ltr-text" style={{fontSize: '10px', color:'#d32f2f', fontWeight:'bold', marginTop:'2px'}}>🔒 {badge.cost} 🪙</span>}
                                     </div>
                                 );
                             })}
@@ -857,14 +888,14 @@ export default function App() {
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#f9f9f9'}}>
                         <h4 style={{margin: '0 0 10px 0', color: '#0056b3', borderBottom: '1px solid #ddd', paddingBottom: '5px'}}>🏆 މިއަދުގެ ކުއިޒް ލީޑަރބޯޑު</h4>
                         {leaderboard.length > 0 ? leaderboard.map((l, i) => (
-                            <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                            <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#e3f2fd'}}>
                         <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ ހިސާބު ލީޑަރބޯޑު</h4>
                         {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
-                            <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                            <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                     </div>
 
@@ -875,13 +906,13 @@ export default function App() {
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
-                        <button onClick={() => setDashView('overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#f57f17', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
+                        <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#f57f17', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0, color: '#f57f17'}}>އިނާމު ފިހާރަ 🎁</h3>
                     </div>
                     
                     <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
                         <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން:</span>
-                        <span style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold'}}>{profileData.total_coins || 0} 🪙</span>
+                        <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
                     <div className="gift-grid">
@@ -891,7 +922,7 @@ export default function App() {
                                 <div key={gift.id} className="gift-card">
                                     <div style={{background: '#f0f4f8', padding: '15px', borderRadius: '50%', marginBottom: '10px'}}>{gift.icon}</div>
                                     <h4 style={{margin: '0 0 5px 0', fontSize: '14px'}}>{gift.name}</h4>
-                                    <p style={{margin: '0 0 15px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold'}}>{gift.cost} 🪙</p>
+                                    <p className="ltr-text" style={{margin: '0 0 15px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
                                     
                                     <button 
                                         onClick={() => showToast('🎉 އިނާމު ހޯދުމަށް ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ!', 'success')} 
@@ -911,7 +942,7 @@ export default function App() {
             {dashView === 'programs' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
-                        <button onClick={() => setDashView('overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
+                        <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0}}>ޕްރޮގްރާމްތައް</h3>
                     </div>
 
@@ -938,28 +969,27 @@ export default function App() {
                 <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
                     <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
                         <div style={{position:'absolute', top:0, right:0, background:'#0056b3', color:'white', padding:'5px 15px', borderBottomLeftRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>ޤުރުއާން މުބާރާތް</div>
-                        
+                        <BrandLogo />
                         <div style={{textAlign:'center', marginBottom: '20px', borderBottom: '2px dashed #ccc', paddingBottom: '15px'}}>
-                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގެ ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
-                            <p style={{margin:0, color:'#666', fontSize:'13px'}}>The Secretariat of the Lhohi Council</p>
+                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
+                            <p className="ltr-text" style={{margin:0, color:'#666', fontSize:'13px', textAlign: 'center'}}>The Secretariat of the Lhohi Council</p>
                         </div>
-
                         <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
                             <tbody>
-                                <tr><td className="slip-label">ނަން (Name):</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
-                                <tr><td className="slip-label">އައި.ޑީ ކާޑު (ID):</td><td className="slip-value"><span className="ltr-text">{profileData.id_card || '-'}</span></td></tr>
-                                <tr><td className="slip-label">ގްރޭޑް/އުމުރު (Grade/Age):</td><td className="slip-value">{profileData.grade || '-'}</td></tr>
-                                <tr><td className="slip-label">ބައި (Level):</td><td className="slip-value">{profileData.level || '-'}</td></tr>
-                                <tr><td className="slip-label">ކިޔަވާ ގޮތް (Category):</td><td className="slip-value">{profileData.category || '-'}</td></tr>
-                                <tr><td className="slip-label">ކިޔަވާ ތަން (Recitation):</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
-                                <tr><td className="slip-label">ބެލެނިވެރިޔާ (Parent):</td><td className="slip-value">{profileData.parent_name !== 'N/A' ? profileData.parent_name : '-'}</td></tr>
-                                <tr><td className="slip-label">އެޑްރެސް (Address):</td><td className="slip-value">{profileData.parent_address || '-'}</td></tr>
-                                <tr><td className="slip-label">ފޯނު (Phone):</td><td className="slip-value"><span className="ltr-text">{profileData.parent_phone || '-'}</span></td></tr>
-                                <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '15px'}}>މާކްސް (Marks):</td><td className="slip-value" style={{paddingTop: '15px', fontSize: '20px', color: '#d32f2f'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
+                                <tr><td className="slip-label">ނަން:</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
+                                <tr><td className="slip-label">އައި.ޑީ ކާޑު:</td><td className="slip-value"><span className="ltr-text">{profileData.id_card || '-'}</span></td></tr>
+                                <tr><td className="slip-label">ގްރޭޑް/އުމުރު:</td><td className="slip-value">{profileData.grade || '-'}</td></tr>
+                                <tr><td className="slip-label">ބައި:</td><td className="slip-value">{profileData.level || '-'}</td></tr>
+                                <tr><td className="slip-label">ކިޔަވާ ގޮތް:</td><td className="slip-value">{profileData.category || '-'}</td></tr>
+                                <tr><td className="slip-label">ކިޔަވާ ތަން:</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
+                                <tr><td className="slip-label">ބެލެނިވެރިޔާ:</td><td className="slip-value">{profileData.parent_name !== 'N/A' ? profileData.parent_name : '-'}</td></tr>
+                                <tr><td className="slip-label">އެޑްރެސް:</td><td className="slip-value">{profileData.parent_address || '-'}</td></tr>
+                                <tr><td className="slip-label">ފޯނު:</td><td className="slip-value"><span className="ltr-text">{profileData.parent_phone || '-'}</span></td></tr>
+                                <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '15px'}}>މާކްސް:</td><td className="slip-value ltr-text" style={{paddingTop: '15px', fontSize: '20px', color: '#d32f2f', textAlign: 'right'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <button onClick={() => setDashView('overview')} style={{...styles.btnSecondary, marginTop:20}}>ފަހަތަށް</button>
+                    <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, marginTop:20}}>ފަހަތަށް</button>
                 </div>
             )}
         </div>
@@ -975,8 +1005,8 @@ export default function App() {
             {quizState === 'playing' && questions[currentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', marginBottom: '15px'}}>
-                    <span style={{fontWeight: 'bold', color: '#555'}}>ސުވާލު {currentQ+1} / {questions.length}</span>
-                    <span style={{fontWeight: 'bold', color: '#0056b3'}}>މާކްސް: {score}</span>
+                    <span style={{fontWeight: 'bold', color: '#555'}}>ސުވާލު <span className="ltr-text" style={{width:'auto'}}>{currentQ+1} / {questions.length}</span></span>
+                    <span style={{fontWeight: 'bold', color: '#0056b3'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{score}</span></span>
                 </div>
                 <h3 className="fancy-dhivehi" style={{lineHeight: '1.8', marginBottom: '25px', direction: 'rtl', textAlign: 'right', fontSize: '22px', color: '#333'}}>{questions[currentQ].question_text}</h3>
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
@@ -989,13 +1019,13 @@ export default function App() {
 
             {quizState === 'result' && (
               <div style={{textAlign:'center'}}>
-                <h1>{score} / {questions.length}</h1>
+                <h1 className="ltr-text">{score} / {questions.length}</h1>
                 {(score >= Math.ceil(questions.length * 0.8)) ? 
                     <><p style={{color:'green', fontWeight: 'bold'}}>🎉 ކޮލިފައިވެއްޖެ! 5 ކޮއިން ލިބޭނެ.</p><p style={{fontSize: '12px', color: '#666'}}>މަޑުކޮށްލައްވާ...</p></> 
                     : 
                 <>
                   <p style={{color:'red'}}>ކޮލިފައިވުމަށް އަލުން މަސައްކަތްކުރައްވާ!</p>
-                  <button style={styles.btnSecondary} onClick={() => {setView('dashboard'); setDashView('programs');}}>ޑޭޝްބޯޑަށް</button>
+                  <button style={styles.btnSecondary} onClick={() => {navigateTo('dashboard', 'programs');}}>ޑޭޝްބޯޑަށް</button>
                 </>}
               </div>
             )}
@@ -1008,10 +1038,10 @@ export default function App() {
                 <div style={{marginTop:'20px', textAlign:'right', background:'#f9f9f9', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
                     <h4 style={{margin:'0 0 10px 0', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>މިއަދުގެ ޓޮප් 10</h4>
                     {leaderboard.length > 0 ? leaderboard.map((l, i) => (
-                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                 </div>
-                <button style={{...styles.btn, marginTop:20}} onClick={() => { resetQuiz(); setView('dashboard'); setDashView('programs'); }}>ޑޭޝްބޯޑަށް</button>
+                <button style={{...styles.btn, marginTop:20}} onClick={() => { resetQuiz(); navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
               </div>
             )}
           </div>
@@ -1028,14 +1058,18 @@ export default function App() {
             {mathState === 'playing' && mathQuestions[mathCurrentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #e3f2fd', paddingBottom: '10px', marginBottom: '15px'}}>
-                    <span style={{fontWeight: 'bold', color: '#1976d2'}}>ހިސާބު ސުވާލު {mathCurrentQ+1} / {mathQuestions.length}</span>
-                    <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: {mathScore}</span>
+                    <span style={{fontWeight: 'bold', color: '#1976d2'}}>ހިސާބު ސުވާލު <span className="ltr-text" style={{width:'auto'}}>{mathCurrentQ+1} / {mathQuestions.length}</span></span>
+                    <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
-                {/* RTL Support for Dhivehi Math word problems */}
-                <h3 className="fancy-dhivehi" style={{lineHeight: '1.8', marginBottom: '25px', textAlign:'right', direction:'rtl', fontSize:'22px', color:'#333'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
+                
+                {/* 🔥 ENGLISH (LTR) OVERRIDE FOR MATH QUESTIONS 🔥
+                    This ensures "10 + 5 = ?" looks correct and doesn't scramble.
+                */}
+                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'ltr', fontSize:'24px', color:'#333', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
+                
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
-                    <button key={i} className="fancy-dhivehi" style={{...styles.optionBtn, direction: 'rtl', fontSize: '18px', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
+                    <button key={i} style={{...styles.optionBtn, direction: 'ltr', textAlign: 'center', fontSize: '18px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
                   ))}
                 </div>
               </>
@@ -1043,7 +1077,7 @@ export default function App() {
 
             {mathState === 'result' && (
               <div style={{textAlign:'center'}}>
-                <h1>{mathScore} / {mathQuestions.length}</h1>
+                <h1 className="ltr-text">{mathScore} / {mathQuestions.length}</h1>
                 
                 {/* FEEDBACK SYSTEM FOR < 50% */}
                 {mathScore < 3 ? (
@@ -1051,12 +1085,12 @@ export default function App() {
                         <h4 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>ރަނގަޅު ޖަވާބުތައް ދަސްކޮށްލަމާ:</h4>
                         {mathQuestions.map((q, i) => (
                             <div key={i} style={{background: 'white', padding: '10px', marginBottom: '8px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'}}>
-                                <p className="fancy-dhivehi" style={{margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold'}}>{q.question_text}</p>
-                                <p className="fancy-dhivehi" style={{margin: 0, color: 'green', fontSize: '14px'}}>✓ <span className="ltr-text" style={{display:'inline-block', width:'auto'}}>{q.correct_option}</span></p>
+                                <p style={{margin: '0 0 5px 0', fontSize: '16px', fontWeight: 'bold', fontFamily: 'Arial, sans-serif', direction: 'ltr', textAlign: 'left'}}>{q.question_text}</p>
+                                <p style={{margin: 0, color: 'green', fontSize: '15px', fontFamily: 'Arial, sans-serif', direction: 'ltr', textAlign: 'left'}}>✓ {q.correct_option}</p>
                             </div>
                         ))}
                         <p style={{fontSize: '13px', color: '#666', marginTop: '15px', fontWeight: 'bold'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
-                        <button style={{...styles.btn, background: '#1976d2', marginTop: '10px'}} onClick={() => { setView('dashboard'); setDashView('programs'); }}>ޑޭޝްބޯޑަށް</button>
+                        <button style={{...styles.btn, background: '#1976d2', marginTop: '10px'}} onClick={() => { navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
                     </div>
                 ) : (
                     <>
@@ -1072,15 +1106,15 @@ export default function App() {
                 <h1 style={{fontSize:'50px', margin:'0 0 10px 0'}}>✅</h1>
                 <h2 style={{marginTop:0}}>ސޭވްކުރެވިއްޖެ!</h2>
 
-                {/* MATH LEADERBOARD */}
+                {/* MATH LEADERBOARD IN SUCCESS SCREEN */}
                 <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
                     <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ހިސާބު ޓޮޕް 10</h4>
                     {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
-                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                 </div>
 
-                <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { setView('dashboard'); setDashView('programs'); }}>ޑޭޝްބޯޑަށް</button>
+                <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
               </div>
             )}
           </div>
@@ -1160,7 +1194,7 @@ function AdminPanel({
         <div style={styles.container}>
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                <h2>އެޑްމިން ޑޭޝްބޯޑު</h2>
+                <h2 className="ltr-text" style={{textAlign: 'right'}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
                 <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, width:'auto'}}>ލޮގްއައުޓް</button>
             </div>
             
@@ -1180,7 +1214,7 @@ function AdminPanel({
                     </div>
                     <table style={styles.table}>
                         <thead><tr><th>ނަން</th><th>އައި.ޑީ</th><th>ގްރޭޑް</th><th>ބައި</th><th>ގޮތް</th><th>ތަން</th><th>ބެލެނިވެރިޔާ</th><th>އެޑްރެސް</th><th>ފޯނު</th><th>މާކްސް</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>{allStudents.map(s => (<tr key={s.id}><td>{s.student_name}</td><td>{s.id_card}</td><td>{s.grade || '-'}</td><td>{s.level || '-'}</td><td>{s.category || '-'}</td><td>{s.recitation || '-'}</td><td>{s.parent_name || '-'}</td><td>{s.parent_address || '-'}</td><td>{s.parent_phone}</td><td><input style={styles.tableInput} defaultValue={s.marks} onBlur={(e) => updateStudentResult(s.id, 'marks', e.target.value)} /></td><td><button onClick={()=>deleteStudent(s.id)} style={{...styles.btnSecondary, background:'red'}}>ފޮހެލާ</button></td></tr>))}</tbody>
+                        <tbody>{allStudents.map(s => (<tr key={s.id}><td>{s.student_name}</td><td className="ltr-text">{s.id_card}</td><td>{s.grade || '-'}</td><td>{s.level || '-'}</td><td>{s.category || '-'}</td><td>{s.recitation || '-'}</td><td>{s.parent_name || '-'}</td><td>{s.parent_address || '-'}</td><td className="ltr-text">{s.parent_phone}</td><td><input style={styles.tableInput} defaultValue={s.marks} onBlur={(e) => updateStudentResult(s.id, 'marks', e.target.value)} /></td><td><button onClick={()=>deleteStudent(s.id)} style={{...styles.btnSecondary, background:'red'}}>ފޮހެލާ</button></td></tr>))}</tbody>
                     </table>
                 </div>
             )}
