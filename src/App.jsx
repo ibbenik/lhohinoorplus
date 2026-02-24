@@ -19,7 +19,6 @@ const GIFTS_CONFIG = [
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
 
-// REUSABLE PREMIUM LOGO COMPONENT
 const BrandLogo = () => (
     <div className="brand-logo fancy-dhivehi">
         ޅޮހި<span>ނޫރު</span>
@@ -59,6 +58,7 @@ export default function App() {
   const [mathQuestions, setMathQuestions] = useState([]);
   const [mathCurrentQ, setMathCurrentQ] = useState(0);
   const [mathScore, setMathScore] = useState(0);
+  const [mathLeaderboard, setMathLeaderboard] = useState([]);
 
   // ADMIN STATE
   const [allStudents, setAllStudents] = useState([]);
@@ -95,11 +95,9 @@ export default function App() {
       setTimeout(() => setAppMessage({ show: false, type: '', text: '' }), 4000);
   };
 
-  // 🔥 CLEAN AND SIMPLE HEART ANIMATION 🔥
   const handleCongratulate = async () => {
     if (hasCongratulated || !dailyWinner) return;
     setHasCongratulated(true);
-    
     const container = animationContainerRef.current;
     if (container) {
         for (let i = 0; i < 4; i++) {
@@ -113,7 +111,6 @@ export default function App() {
             setTimeout(() => { if (container.contains(heart)) container.removeChild(heart); }, 2000);
         }
     }
-    
     const { data: liveData } = await supabase.from('lhohinoor_daily_winners').select('congrats_count').eq('id', dailyWinner.id).single();
     const trueCount = (liveData?.congrats_count || 0) + 1;
     setDailyWinner(prev => ({ ...prev, congrats_count: trueCount }));
@@ -146,7 +143,8 @@ export default function App() {
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 8).length; // 8/10 passing score
+                // Math passes if score is 4 or 5 out of 5
+                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 4).length; 
                 calculatedCoins += (passedMath * 5);
             }
         }
@@ -181,7 +179,16 @@ export default function App() {
   };
 
   const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data); };
-  const fetchLeaderboard = async () => { const { data } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', getActiveQuizDate()).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10); setLeaderboard(data || []); };
+  
+  const fetchLeaderboard = async () => { 
+      const { data } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', getActiveQuizDate()).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10); 
+      setLeaderboard(data || []); 
+  };
+
+  const fetchMathLeaderboard = async () => {
+      const { data } = await supabase.from('lhohinoor_math_attempts').select('username, score').eq('created_at', getActiveQuizDate()).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10); 
+      setMathLeaderboard(data || []); 
+  }
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -285,13 +292,11 @@ export default function App() {
     const isCorrect = opt === questions[currentQ].correct_option;
     if (isCorrect) setScore(score + 1);
     
-    // LIGHTNING FAST TIMEOUT (1000ms)
     setTimeout(() => {
       if (currentQ < questions.length - 1) { setCurrentQ(currentQ + 1); setSelectedOption(null); setIsAnswered(false); } else {
-        const passMark = Math.ceil(questions.length * 0.8);
         const finalScore = isCorrect ? score + 1 : score;
         setScore(finalScore);
-        if (finalScore >= passMark) { setQuizState('result'); setTimeout(() => autoSubmitQuiz(finalScore), 2000); } else { setQuizState('result'); }
+        setQuizState('result'); setTimeout(() => autoSubmitQuiz(finalScore), 2000);
       }
     }, 1000); 
   };
@@ -308,7 +313,7 @@ export default function App() {
     setQuizLoading(false);
   };
 
-  // --- MATH CHALLENGE (GRADE BASED, 10 QUESTIONS) ---
+  // --- MATH CHALLENGE (GRADE BASED, 5 QUESTIONS, 1 ATTEMPT) ---
   const startMathQuiz = async () => {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
@@ -317,22 +322,24 @@ export default function App() {
       const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
       if (attErr) { showToast("Database error, have you created the tables?", "error"); setQuizLoading(false); return; }
       
-      if (attempts && attempts.length >= 2) {
-          showToast("މިއަދުގެ 2 ފުރުޞަތު ވަނީ ބޭނުންކޮށްފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
+      // ONLY 1 ATTEMPT PER DAY
+      if (attempts && attempts.length >= 1) {
+          showToast("މިއަދުގެ ފުރުޞަތު ވަނީ ބޭނުންކޮށްފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return;
       }
 
       const { data: qData, error: qErr } = await supabase.from('lhohinoor_math_questions').select('*').eq('grade', profileData.grade);
       
       if (qErr) { showToast("Database Error. Tables not found.", "error"); setQuizLoading(false); return; }
+      
       if (!qData || qData.length < 1) {
           showToast("މި ގްރޭޑަށް އަދި ސުވާލުތައް އަޕްލޯޑްކޮށްފައެއް ނުވޭ.", "warning");
           setQuizLoading(false); return;
       }
 
-      // 10 Standard Questions for Math Challenge
-      const randomTen = qData.sort(() => 0.5 - Math.random()).slice(0, 10);
-      setMathQuestions(randomTen); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); 
+      // EXACTLY 5 QUESTIONS FOR MATH
+      const randomFive = qData.sort(() => 0.5 - Math.random()).slice(0, 5);
+      setMathQuestions(randomFive); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); 
       setMathState('playing'); setView('math_quiz');
       setQuizLoading(false);
   };
@@ -343,24 +350,36 @@ export default function App() {
       const isCorrect = opt === mathQuestions[mathCurrentQ].correct_option;
       if (isCorrect) setMathScore(mathScore + 1);
 
-      // LIGHTNING FAST TIMEOUT (1000ms)
       setTimeout(() => {
           if (mathCurrentQ < mathQuestions.length - 1) {
               setMathCurrentQ(mathCurrentQ + 1); setSelectedOption(null); setIsAnswered(false);
           } else {
-              setMathState('result');
               const finalScore = isCorrect ? mathScore + 1 : mathScore;
               setMathScore(finalScore);
-              setTimeout(() => autoSubmitMath(finalScore), 2000);
+              setMathState('result');
+              // Only auto-submit and move to success if they passed (so they have time to read feedback if failed)
+              if (finalScore >= 3) {
+                  setTimeout(() => autoSubmitMath(finalScore), 2500);
+              } else {
+                  autoSubmitMathBackground(finalScore); // Submit quietly so they can't play again
+              }
           }
       }, 1000);
   };
 
   const autoSubmitMath = async (finalScore) => {
       const activeDate = getActiveQuizDate();
-      await supabase.from('lhohinoor_math_attempts').insert([{ phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
+      await supabase.from('lhohinoor_math_attempts').insert([{ username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
+      await fetchMathLeaderboard();
       await fetchProfileDetails(user.id); 
       setMathState('success');
+  };
+
+  const autoSubmitMathBackground = async (finalScore) => {
+      const activeDate = getActiveQuizDate();
+      await supabase.from('lhohinoor_math_attempts').insert([{ username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
+      await fetchMathLeaderboard();
+      await fetchProfileDetails(user.id); 
   };
 
   const getButtonColor = (opt, questionsArray, currentIndex) => {
@@ -371,13 +390,8 @@ export default function App() {
 
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
 
-  // EXTREMELY SAFE ENROLLMENT CHECK
-  const isEnrolledInQuran = profileData && (
-      (profileData.level && profileData.level.trim().length > 0) || 
-      (profileData.category && profileData.category.trim().length > 0) || 
-      (profileData.recitation && profileData.recitation.trim().length > 0) ||
-      (profileData.marks && String(profileData.marks).trim().length > 0)
-  );
+  // SAFE ENROLLMENT CHECK (Checks if level exists and is not empty)
+  const isEnrolledInQuran = profileData && profileData.level && profileData.level.trim() !== '' && profileData.level !== 'N/A';
 
   return (
     <div style={styles.appContainer}>
@@ -549,6 +563,7 @@ export default function App() {
           
           <div style={styles.grid}>
             
+            {/* GENERAL QUIZ CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
@@ -556,13 +571,15 @@ export default function App() {
                 <button style={styles.btn} onClick={startQuiz}>{user && profileData && !profileData.isMissing ? 'ކުއިޒް ފަށަމާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
             
+            {/* MATHS CHALLENGE CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600" alt="Math" style={styles.cardImg}/>
-                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h3>
-                <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>10 ސުވާލު. ދުވާލަކު 2 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
+                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h3>
+                <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz}>{user && profileData && !profileData.isMissing ? 'ޗެލެންޖް ފަށާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
 
+            {/* QURAN CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=600" alt="Quran" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>📖 ޤުރުއާން މުބާރާތް</h3>
@@ -571,6 +588,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* PARTNERS & FOOTER */}
           <div style={styles.partnerSection} className="animate-card">
               <h3 style={{color:'#2e7d32'}}>ބައިވެރިން</h3>
               <div style={styles.sponsorGrid}>
@@ -710,7 +728,7 @@ export default function App() {
                     
                     {/* DIRECT QURAN SLIP ACCESS ON OVERVIEW */}
                     {isEnrolledInQuran && (
-                        <div className="dash-menu-btn" onClick={() => setDashView('programs')} style={{background: '#e8f5e9', borderColor: '#4caf50'}}>
+                        <div className="dash-menu-btn" onClick={() => setDashView('quran_slip')} style={{background: '#e8f5e9', borderColor: '#4caf50'}}>
                             <div className="dash-icon" style={{background: 'white', color: '#4caf50'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
@@ -798,7 +816,7 @@ export default function App() {
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right'}}>
                         <h4 style={{margin: '0 0 5px 0', color: '#d32f2f'}}>💯 ސްކޯ ބޯޑު</h4>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ކުއިޒް ފާސްވި އަދަދު:</b> {(profileData.quiz_total_score || 0) / 5}</p>
-                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ހިސާބު ފާސްވި އަދަދު:</b> {(profileData.math_total_score || 0) / 10}</p>
+                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ހިސާބު ފާސްވި އަދަދު:</b> {(profileData.math_total_score || 0) / 5}</p>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> {profileData.marks || 'ނުލިބޭ'}</p>
                     </div>
 
@@ -865,36 +883,14 @@ export default function App() {
                         <h3 style={{margin: 0}}>ޕްރޮގްރާމްތައް</h3>
                     </div>
 
-                    {isEnrolledInQuran && (
-                        <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '20px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden', marginBottom: '20px' }}>
-                            <div style={{position:'absolute', top:0, right:0, background:'#0056b3', color:'white', padding:'5px 15px', borderBottomLeftRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>
-                                ޤުރުއާން މުބާރާތް
-                            </div>
-                            <div style={{textAlign:'center', marginBottom: '15px', borderBottom: '2px dashed #ccc', paddingBottom: '10px'}}>
-                                <h3 style={{color: '#2e7d32', margin: '15px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h3>
-                            </div>
-                            <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
-                                <tbody>
-                                    <tr><td className="slip-label">ނަން:</td><td className="slip-value">{profileData.student_name || '-'}</td></tr>
-                                    <tr><td className="slip-label">އައި.ޑީ:</td><td className="slip-value"><span className="ltr-text">{profileData.id_card || '-'}</span></td></tr>
-                                    <tr><td className="slip-label">ގްރޭޑް/އުމުރު:</td><td className="slip-value">{profileData.grade || '-'}</td></tr>
-                                    <tr><td className="slip-label">ބައި:</td><td className="slip-value">{profileData.level || '-'}</td></tr>
-                                    <tr><td className="slip-label">ކިޔަވާ ގޮތް:</td><td className="slip-value">{profileData.category || '-'}</td></tr>
-                                    <tr><td className="slip-label">ތަން:</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
-                                    <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '10px'}}>މާކްސް:</td><td className="slip-value" style={{paddingTop: '10px', fontSize: '18px', color: '#d32f2f'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4>❓ ދުވަހުގެ ކުއިޒް</h4>
                         <button onClick={startQuiz} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '14px'}}>މިއަދުގެ ކުއިޒް ކުޅުއްވާ</button>
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
-                        <h4 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް (Maths)</h4>
-                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>ދުވާލަކު 2 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
+                        <h4 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                         <button onClick={startMathQuiz} style={{...styles.btn, background: '#1976d2', color: 'white', padding: '8px', fontSize: '14px'}}>ޗެލެންޖް ފަށާ!</button>
                     </div>
 
@@ -902,6 +898,35 @@ export default function App() {
                         <h4 style={{color: '#777'}}>📜 ޙަދީޘް މުބާރާތް</h4>
                         <button disabled style={{...styles.btnSecondary, background: '#eee', color: '#999', padding: '8px', fontSize: '14px', cursor: 'not-allowed'}}>އަދި ނުހުޅުވޭ</button>
                     </div>
+                </div>
+            )}
+
+            {/* VIEW: QURAN SLIP */}
+            {dashView === 'quran_slip' && profileData && (
+                <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
+                    <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
+                        <div style={{position:'absolute', top:0, right:0, background:'#0056b3', color:'white', padding:'5px 15px', borderBottomLeftRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>ޤުރުއާން މުބާރާތް</div>
+                        <BrandLogo />
+                        <div style={{textAlign:'center', marginBottom: '20px', borderBottom: '2px dashed #ccc', paddingBottom: '15px'}}>
+                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
+                            <p style={{margin:0, color:'#666', fontSize:'13px'}}>The Secretariat of the Lhohi Council</p>
+                        </div>
+                        <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
+                            <tbody>
+                                <tr><td className="slip-label">ނަން:</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
+                                <tr><td className="slip-label">އައި.ޑީ ކާޑު:</td><td className="slip-value"><span className="ltr-text">{profileData.id_card || '-'}</span></td></tr>
+                                <tr><td className="slip-label">ގްރޭޑް/އުމުރު:</td><td className="slip-value">{profileData.grade || '-'}</td></tr>
+                                <tr><td className="slip-label">ބައި:</td><td className="slip-value">{profileData.level || '-'}</td></tr>
+                                <tr><td className="slip-label">ކިޔަވާ ގޮތް:</td><td className="slip-value">{profileData.category || '-'}</td></tr>
+                                <tr><td className="slip-label">ކިޔަވާ ތަން:</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
+                                <tr><td className="slip-label">ބެލެނިވެރިޔާ:</td><td className="slip-value">{profileData.parent_name !== 'N/A' ? profileData.parent_name : '-'}</td></tr>
+                                <tr><td className="slip-label">އެޑްރެސް:</td><td className="slip-value">{profileData.parent_address || '-'}</td></tr>
+                                <tr><td className="slip-label">ފޯނު:</td><td className="slip-value"><span className="ltr-text">{profileData.parent_phone || '-'}</span></td></tr>
+                                <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '15px'}}>މާކްސް:</td><td className="slip-value" style={{paddingTop: '15px', fontSize: '20px', color: '#d32f2f'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button onClick={() => setDashView('overview')} style={{...styles.btnSecondary, marginTop:20}}>ފަހަތަށް</button>
                 </div>
             )}
         </div>
@@ -938,7 +963,6 @@ export default function App() {
                 <>
                   <p style={{color:'red'}}>ކޮލިފައިވުމަށް އަލުން މަސައްކަތްކުރައްވާ!</p>
                   <button style={styles.btnSecondary} onClick={() => {setView('dashboard'); setDashView('programs');}}>ޑޭޝްބޯޑަށް</button>
-                  <button style={{...styles.btn, marginTop:10}} onClick={startQuiz}>އަލުން މަސައްކަތްކުރައްވާ</button>
                 </>}
               </div>
             )}
@@ -974,7 +998,7 @@ export default function App() {
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>ހިސާބު ސުވާލު {mathCurrentQ+1} / {mathQuestions.length}</span>
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: {mathScore}</span>
                 </div>
-                {/* RTL Support for Dhivehi Math word problems */}
+                {/* Math questions are RTL for Dhivehi Word Problems, Font size reduced for neatness */}
                 <h3 className="fancy-dhivehi" style={{lineHeight: '1.8', marginBottom: '25px', textAlign:'right', direction:'rtl', fontSize:'22px', color:'#333'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
@@ -987,13 +1011,26 @@ export default function App() {
             {mathState === 'result' && (
               <div style={{textAlign:'center'}}>
                 <h1>{mathScore} / {mathQuestions.length}</h1>
-                {(mathScore >= Math.ceil(mathQuestions.length * 0.8)) ? 
-                    <><p style={{color:'green', fontWeight: 'bold'}}>🎉 މޮޅު! 5 ކޮއިން ލިބޭނެ.</p><p style={{fontSize: '12px', color: '#666'}}>މަޑުކޮށްލައްވާ...</p></> 
-                    : 
-                <>
-                  <p style={{color:'red'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
-                  <button style={{...styles.btn, background: '#1976d2'}} onClick={() => { setView('dashboard'); setDashView('programs'); autoSubmitMath(mathScore); }}>ޑޭޝްބޯޑަށް</button>
-                </>}
+                
+                {/* FEEDBACK SYSTEM FOR < 50% */}
+                {mathScore < 3 ? (
+                    <div style={{textAlign: 'right', direction: 'rtl', marginTop: '20px', padding: '15px', background: '#ffebee', borderRadius: '10px', borderRight: '4px solid #f44336'}}>
+                        <h4 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>ރަނގަޅު ޖަވާބުތައް ދަސްކޮށްލަމާ:</h4>
+                        {mathQuestions.map((q, i) => (
+                            <div key={i} style={{background: 'white', padding: '10px', marginBottom: '8px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'}}>
+                                <p className="fancy-dhivehi" style={{margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold'}}>{q.question_text}</p>
+                                <p className="fancy-dhivehi" style={{margin: 0, color: 'green', fontSize: '14px'}}>✓ {q.correct_option}</p>
+                            </div>
+                        ))}
+                        <p style={{fontSize: '13px', color: '#666', marginTop: '15px', fontWeight: 'bold'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
+                        <button style={{...styles.btn, background: '#1976d2', marginTop: '10px'}} onClick={() => { setView('dashboard'); setDashView('programs'); }}>ޑޭޝްބޯޑަށް</button>
+                    </div>
+                ) : (
+                    <>
+                        <p style={{color:'green', fontWeight: 'bold'}}>🎉 މޮޅު! 5 ކޮއިން ލިބޭނެ.</p>
+                        <p style={{fontSize: '12px', color: '#666'}}>މަޑުކޮށްލައްވާ...</p>
+                    </>
+                )}
               </div>
             )}
             
@@ -1001,6 +1038,15 @@ export default function App() {
               <div style={{textAlign:'center'}}>
                 <h1 style={{fontSize:'50px', margin:'0 0 10px 0'}}>✅</h1>
                 <h2 style={{marginTop:0}}>ސޭވްކުރެވިއްޖެ!</h2>
+
+                {/* MATH LEADERBOARD */}
+                <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
+                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ހިސާބު ޓޮޕް 10</h4>
+                    {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
+                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                    )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
+                </div>
+
                 <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { setView('dashboard'); setDashView('programs'); }}>ޑޭޝްބޯޑަށް</button>
               </div>
             )}
@@ -1045,7 +1091,7 @@ function AdminPanel({
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
     const deleteStudent = async (id) => { if(window.confirm("މި ދަރިވަރު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_students').delete().eq('id', id); loadAdminData(); } };
     
-    // NEW: BULK UPLOAD MATH QUESTIONS
+    // BULK UPLOAD MATH QUESTIONS
     const handleBulkMathUpload = async () => {
         try {
             const parsedData = JSON.parse(bulkJSON);
