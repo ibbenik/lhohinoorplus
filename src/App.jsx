@@ -19,6 +19,7 @@ const GIFTS_CONFIG = [
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
 
+// REUSABLE PREMIUM LOGO COMPONENT
 const BrandLogo = () => (
     <div className="brand-logo fancy-dhivehi">
         ޅޮހި<span>ނޫރު</span>
@@ -70,6 +71,8 @@ export default function App() {
   useEffect(() => {
     fetchLatestWinner();
     fetchPartners(); 
+    fetchLeaderboards(); // LOAD BOTH LEADERBOARDS ON START
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); fetchProfileDetails(session.user.id); }
     });
@@ -143,8 +146,7 @@ export default function App() {
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-                // Math passes if score is 4 or 5 out of 5
-                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 4).length; 
+                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 4).length; // 4 or 5 out of 5
                 calculatedCoins += (passedMath * 5);
             }
         }
@@ -180,15 +182,20 @@ export default function App() {
 
   const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data); };
   
-  const fetchLeaderboard = async () => { 
-      const { data } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', getActiveQuizDate()).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10); 
-      setLeaderboard(data || []); 
-  };
+  // Fetch BOTH leaderboards so they show up on the Progress Page
+  const fetchLeaderboards = async () => {
+      const activeDate = getActiveQuizDate();
+      
+      const { data: genData } = await supabase.from('lhohinoor_quiz_attempts')
+          .select('username, score').eq('created_at', activeDate)
+          .order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+      setLeaderboard(genData || []);
 
-  const fetchMathLeaderboard = async () => {
-      const { data } = await supabase.from('lhohinoor_math_attempts').select('username, score').eq('created_at', getActiveQuizDate()).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10); 
-      setMathLeaderboard(data || []); 
-  }
+      const { data: mData } = await supabase.from('lhohinoor_math_attempts')
+          .select('username, score').eq('created_at', activeDate)
+          .order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+      setMathLeaderboard(mData || []);
+  };
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -294,9 +301,10 @@ export default function App() {
     
     setTimeout(() => {
       if (currentQ < questions.length - 1) { setCurrentQ(currentQ + 1); setSelectedOption(null); setIsAnswered(false); } else {
+        const passMark = Math.ceil(questions.length * 0.8);
         const finalScore = isCorrect ? score + 1 : score;
         setScore(finalScore);
-        setQuizState('result'); setTimeout(() => autoSubmitQuiz(finalScore), 2000);
+        if (finalScore >= passMark) { setQuizState('result'); setTimeout(() => autoSubmitQuiz(finalScore), 2000); } else { setQuizState('result'); }
       }
     }, 1000); 
   };
@@ -306,7 +314,7 @@ export default function App() {
     const activeDate = getActiveQuizDate(); 
     const { error } = await supabase.from('lhohinoor_quiz_attempts').insert([{ username: profileData.student_name, address: profileData.parent_address || "N/A", phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
     if (!error) { 
-        await fetchLeaderboard();
+        await fetchLeaderboards();
         await fetchProfileDetails(user.id); 
         setQuizState('success'); 
     } else { showToast("މައްސަލައެއް ދިމާވެއްޖެ: " + error.message, "error"); }
@@ -337,7 +345,6 @@ export default function App() {
           setQuizLoading(false); return;
       }
 
-      // EXACTLY 5 QUESTIONS FOR MATH
       const randomFive = qData.sort(() => 0.5 - Math.random()).slice(0, 5);
       setMathQuestions(randomFive); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); 
       setMathState('playing'); setView('math_quiz');
@@ -357,11 +364,10 @@ export default function App() {
               const finalScore = isCorrect ? mathScore + 1 : mathScore;
               setMathScore(finalScore);
               setMathState('result');
-              // Only auto-submit and move to success if they passed (so they have time to read feedback if failed)
               if (finalScore >= 3) {
                   setTimeout(() => autoSubmitMath(finalScore), 2500);
               } else {
-                  autoSubmitMathBackground(finalScore); // Submit quietly so they can't play again
+                  autoSubmitMathBackground(finalScore); 
               }
           }
       }, 1000);
@@ -370,7 +376,7 @@ export default function App() {
   const autoSubmitMath = async (finalScore) => {
       const activeDate = getActiveQuizDate();
       await supabase.from('lhohinoor_math_attempts').insert([{ username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
-      await fetchMathLeaderboard();
+      await fetchLeaderboards();
       await fetchProfileDetails(user.id); 
       setMathState('success');
   };
@@ -378,7 +384,7 @@ export default function App() {
   const autoSubmitMathBackground = async (finalScore) => {
       const activeDate = getActiveQuizDate();
       await supabase.from('lhohinoor_math_attempts').insert([{ username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
-      await fetchMathLeaderboard();
+      await fetchLeaderboards();
       await fetchProfileDetails(user.id); 
   };
 
@@ -390,15 +396,23 @@ export default function App() {
 
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
 
-  // SAFE ENROLLMENT CHECK (Checks if level exists and is not empty)
-  const isEnrolledInQuran = profileData && profileData.level && profileData.level.trim() !== '' && profileData.level !== 'N/A';
+  // EXTREMELY SAFE ENROLLMENT CHECK for the Golden VIP Button
+  const isEnrolledInQuran = profileData && (
+      (profileData.level && profileData.level.trim().length > 0) || 
+      (profileData.category && profileData.category.trim().length > 0) || 
+      (profileData.recitation && profileData.recitation.trim().length > 0) ||
+      (profileData.marks && String(profileData.marks).trim().length > 0)
+  );
 
   return (
     <div style={styles.appContainer}>
       <style>
         {`
+        /* GLOBAL FARUMA FONT APPLICATION */
         @font-face { font-family: 'Faruma'; src: url('/faruma.ttf') format('truetype'); font-weight: normal; font-style: normal; }
-        .fancy-dhivehi { font-family: "MV Boli", "A_Faseyha", "Faruma", cursive, sans-serif; }
+        * { font-family: 'Faruma', sans-serif; }
+        .fancy-dhivehi { font-family: 'Faruma', sans-serif !important; }
+        .ltr-text { font-family: sans-serif !important; direction: ltr; unicode-bidi: embed; text-align: right; display: inline-block; width: 100%; }
 
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
@@ -458,7 +472,11 @@ export default function App() {
         .official-slip-table tr:last-child td { border-bottom: none; }
         .slip-label { color: #555; width: 35%; font-size: 13px; }
         .slip-value { font-weight: bold; color: #000; font-size: 14px; }
-        .ltr-text { direction: ltr; unicode-bidi: embed; text-align: right; display: inline-block; width: 100%; }
+        
+        .leaderboard-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; }
+        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; }
+        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; }
         `}
       </style>
 
@@ -563,7 +581,6 @@ export default function App() {
           
           <div style={styles.grid}>
             
-            {/* GENERAL QUIZ CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
@@ -571,15 +588,13 @@ export default function App() {
                 <button style={styles.btn} onClick={startQuiz}>{user && profileData && !profileData.isMissing ? 'ކުއިޒް ފަށަމާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
             
-            {/* MATHS CHALLENGE CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600" alt="Math" style={styles.cardImg}/>
-                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h3>
+                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz}>{user && profileData && !profileData.isMissing ? 'ޗެލެންޖް ފަށާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
 
-            {/* QURAN CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=600" alt="Quran" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>📖 ޤުރުއާން މުބާރާތް</h3>
@@ -588,7 +603,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* PARTNERS & FOOTER */}
           <div style={styles.partnerSection} className="animate-card">
               <h3 style={{color:'#2e7d32'}}>ބައިވެރިން</h3>
               <div style={styles.sponsorGrid}>
@@ -726,13 +740,16 @@ export default function App() {
             {dashView === 'overview' && (
                 <div className="dash-menu-grid animate-card">
                     
-                    {/* DIRECT QURAN SLIP ACCESS ON OVERVIEW */}
+                    {/* 🔥 THE GOLDEN VIP QURAN SLIP BUTTON 🔥 */}
                     {isEnrolledInQuran && (
-                        <div className="dash-menu-btn" onClick={() => setDashView('quran_slip')} style={{background: '#e8f5e9', borderColor: '#4caf50'}}>
-                            <div className="dash-icon" style={{background: 'white', color: '#4caf50'}}>
+                        <div className="dash-menu-btn" onClick={() => setDashView('quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
+                            <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
-                            <div><p className="dash-menu-title" style={{color: '#2e7d32'}}>މަގޭ ޤުރުއާން ސްލިޕް</p><p className="dash-menu-sub">މުބާރާތުގެ މަޢުލޫމާތު ބެއްލެވުމަށް</p></div>
+                            <div>
+                                <p className="dash-menu-title" style={{color: '#333'}}>މަގޭ ޤުރުއާން ސްލިޕް (VIP)</p>
+                                <p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p>
+                            </div>
                         </div>
                     )}
 
@@ -794,18 +811,18 @@ export default function App() {
                     ) : (
                         <div style={{textAlign: 'right', lineHeight: '1.8'}}>
                             <p><b>ނަން:</b> {profileData.student_name}</p>
-                            <p><b>އައި.ޑީ ކާޑު:</b> <span style={{direction: 'ltr', unicodeBidi: 'embed'}}>{profileData.id_card}</span></p>
+                            <p><b>އައި.ޑީ ކާޑު:</b> <span className="ltr-text">{profileData.id_card}</span></p>
                             <p><b>އެޑްރެސް:</b> {profileData.parent_address}</p>
-                            <p><b>ފޯނު ނަންބަރު:</b> <span style={{direction: 'ltr', unicodeBidi: 'embed'}}>{profileData.parent_phone}</span></p>
+                            <p><b>ފޯނު ނަންބަރު:</b> <span className="ltr-text">{profileData.parent_phone}</span></p>
                             <p><b>ގްރޭޑް / އުމުރު:</b> {profileData.grade}</p>
-                            {user.email && !user.email.includes('@lhohi.mv') && <p><b>އީމެއިލް:</b> <span style={{direction: 'ltr', unicodeBidi: 'embed'}}>{user.email}</span></p>}
+                            {user.email && !user.email.includes('@lhohi.mv') && <p><b>އީމެއިލް:</b> <span className="ltr-text">{user.email}</span></p>}
                             <button onClick={() => setIsEditingProfile(true)} style={{...styles.btnSecondary, marginTop: '15px'}}>މަޢުލޫމާތު ބަދަލުކުރޭ</button>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* VIEW: MY PROGRESS & REWARDS */}
+            {/* VIEW: MY PROGRESS & REWARDS (NOW HAS LEADERBOARDS) */}
             {dashView === 'progress' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -822,7 +839,6 @@ export default function App() {
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4 style={{margin: '0 0 10px 0', color: '#fbc02d'}}>🏅 އަންލޮކްވެފައިވާ ބެޖްތައް</h4>
-                        
                         <div className="badge-grid">
                             {BADGE_CONFIG.map(badge => {
                                 const isUnlocked = (profileData.total_coins || 0) >= badge.cost;
@@ -836,6 +852,22 @@ export default function App() {
                             })}
                         </div>
                     </div>
+
+                    {/* 🔥 BOTH LEADERBOARDS EMBEDDED IN PROGRESS PAGE 🔥 */}
+                    <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#f9f9f9'}}>
+                        <h4 style={{margin: '0 0 10px 0', color: '#0056b3', borderBottom: '1px solid #ddd', paddingBottom: '5px'}}>🏆 މިއަދުގެ ކުއިޒް ލީޑަރބޯޑު</h4>
+                        {leaderboard.length > 0 ? leaderboard.map((l, i) => (
+                            <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                        )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
+                    </div>
+
+                    <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#e3f2fd'}}>
+                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ ހިސާބު ލީޑަރބޯޑު</h4>
+                        {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
+                            <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span>{l.score} މާކްސް</span></div>
+                        )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
+                    </div>
+
                 </div>
             )}
 
@@ -901,7 +933,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: QURAN SLIP */}
+            {/* VIEW: QURAN SLIP (THE VIP TABLE) */}
             {dashView === 'quran_slip' && profileData && (
                 <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
                     <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
@@ -998,7 +1030,7 @@ export default function App() {
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>ހިސާބު ސުވާލު {mathCurrentQ+1} / {mathQuestions.length}</span>
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: {mathScore}</span>
                 </div>
-                {/* Math questions are RTL for Dhivehi Word Problems, Font size reduced for neatness */}
+                {/* RTL Support for Dhivehi Math word problems */}
                 <h3 className="fancy-dhivehi" style={{lineHeight: '1.8', marginBottom: '25px', textAlign:'right', direction:'rtl', fontSize:'22px', color:'#333'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
@@ -1019,7 +1051,7 @@ export default function App() {
                         {mathQuestions.map((q, i) => (
                             <div key={i} style={{background: 'white', padding: '10px', marginBottom: '8px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'}}>
                                 <p className="fancy-dhivehi" style={{margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold'}}>{q.question_text}</p>
-                                <p className="fancy-dhivehi" style={{margin: 0, color: 'green', fontSize: '14px'}}>✓ {q.correct_option}</p>
+                                <p className="fancy-dhivehi" style={{margin: 0, color: 'green', fontSize: '14px'}}>✓ <span className="ltr-text" style={{display:'inline-block', width:'auto'}}>{q.correct_option}</span></p>
                             </div>
                         ))}
                         <p style={{fontSize: '13px', color: '#666', marginTop: '15px', fontWeight: 'bold'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
