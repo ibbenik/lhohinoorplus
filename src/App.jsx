@@ -19,7 +19,7 @@ const GIFTS_CONFIG = [
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
 
-// REUSABLE PREMIUM LOGO COMPONENT (NOW WITH UNDERLINE)
+// REUSABLE PREMIUM LOGO COMPONENT
 const BrandLogo = () => (
     <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <div className="brand-logo fancy-dhivehi" style={{ borderBottom: '3px solid #fbc02d', display: 'inline-block', paddingBottom: '5px', marginBottom: 0 }}>
@@ -181,7 +181,6 @@ export default function App() {
         let spentCoins = 0;
 
         if (data.parent_phone) {
-            // 1. Earned from Quizzes
             const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('phone', data.parent_phone);
             if (genAttempts) {
                 totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -189,7 +188,6 @@ export default function App() {
                 calculatedCoins += (passedGeneral * 5);
             }
 
-            // 2. Earned from Math
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -197,7 +195,6 @@ export default function App() {
                 calculatedCoins += (passedMath * 5);
             }
 
-            // 3. Deduct Spent Coins (Purchases)
             const { data: purchaseData, error: pErr } = await supabase.from('lhohinoor_purchases').select('*').eq('phone', data.parent_phone);
             if (!pErr && purchaseData) {
                 spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
@@ -207,7 +204,6 @@ export default function App() {
         
         if (data.level) calculatedCoins += 100;
 
-        // FINAL BALANCE
         const currentBalance = calculatedCoins - spentCoins;
 
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
@@ -240,10 +236,10 @@ export default function App() {
   
   const fetchLeaderboards = async () => {
       const activeDate = getActiveQuizDate();
-      const { data: genData } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+      const { data: genData } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).limit(10);
       setLeaderboard(genData || []);
 
-      const { data: mData } = await supabase.from('lhohinoor_math_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).order('created_at', { ascending: false }).limit(10);
+      const { data: mData } = await supabase.from('lhohinoor_math_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).limit(10);
       setMathLeaderboard(mData || []);
   };
 
@@ -268,7 +264,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // 🔥 SECURE LOGIN PROCESS 🔥
   const handleAuth = async (e) => {
     e.preventDefault(); setLoading(true); 
     try {
@@ -286,7 +281,6 @@ export default function App() {
           let loginEmail = d.login_identifier.trim();
           if (!loginEmail.includes('@')) loginEmail = `${loginEmail.toUpperCase()}@lhohi.mv`;
           
-          // SECURE LOGIN VIA SUPABASE
           const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: d.password });
           if (error) { 
               showToast('އީމެއިލް/އައި.ޑީ ނުވަތަ ޕާސްވޯޑް ނުބައި.', 'error'); 
@@ -363,7 +357,6 @@ export default function App() {
       setLoading(false);
   };
 
-  // --- GENERAL QUIZ ---
   const startQuiz = async () => {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
@@ -412,7 +405,6 @@ export default function App() {
     setQuizLoading(false);
   };
 
-  // --- MATH CHALLENGE (ENGLISH STYLING, 5 QUESTIONS, 1 ATTEMPT) ---
   const startMathQuiz = async () => {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
@@ -485,7 +477,6 @@ export default function App() {
 
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
 
-  // EXTREMELY SAFE ENROLLMENT CHECK
   const isEnrolledInQuran = profileData && (
       (profileData.level && String(profileData.level).trim() !== '' && profileData.level !== 'N/A') || 
       (profileData.category && String(profileData.category).trim() !== '' && profileData.category !== 'N/A') || 
@@ -575,6 +566,13 @@ export default function App() {
         .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; font-size: 18px; }
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
+
+        /* 🔥 NEW PROFESSIONAL GLASS NAVBAR 🔥 */
+        .main-navbar { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .nav-btn { background: transparent; color: #555; border: none; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 15px; transition: all 0.2s ease; }
+        .nav-btn:hover { background: #f0f4f8; color: #0056b3; }
+        .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 8px 20px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 15px; transition: all 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); }
+        .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
         `}
       </style>
 
@@ -600,18 +598,27 @@ export default function App() {
           </div>
       )}
       
-      <div style={styles.navbar}>
-        <div style={styles.logo} onClick={() => navigateTo('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
+      {/* 🔥 NEW PROFESSIONAL NAVBAR 🔥 */}
+      <header className="main-navbar">
+        <div style={{ fontWeight: '900', fontSize: '24px', color: '#2e7d32', cursor: 'pointer' }} onClick={() => navigateTo('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
         <div style={{display:'flex', gap:10}}>
-           <button onClick={() => navigateTo('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
-           <button onClick={() => navigateTo('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
-           {user && !profileData?.isMissing && user.email !== 'admin@lhohi.mv' && user.email !== 'shop@lhohi.mv' ? (
-               <button onClick={() => {navigateTo('dashboard', 'overview');}} style={{...styles.navBtn, color: '#0056b3'}}>ޑޭޝްބޯޑު</button>
+           <button onClick={() => navigateTo('home')} className="nav-btn">ފުރަތަމަ ޞަފުޙާ</button>
+           <button onClick={() => navigateTo('info')} className="nav-btn">މަޢުލޫމާތު</button>
+           
+           {/* DYNAMIC LOGGED-IN BUTTONS */}
+           {user ? (
+               user.email === 'admin@lhohi.mv' ? (
+                   <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
+               ) : user.email === 'shop@lhohi.mv' ? (
+                   <button onClick={() => navigateTo('shop_admin')} className="nav-btn-primary" style={{background: 'linear-gradient(135deg, #ff9800, #ff5722)'}}>ފިހާރަ އެޑްމިން</button>
+               ) : !profileData?.isMissing ? (
+                   <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
+               ) : null
            ) : (
-               !user && <button onClick={() => { navigateTo('auth'); setAuthMode('login'); setAuthMessage({type:'', text:''}); }} style={styles.navBtn}>ލޮގިން</button>
+               <button onClick={() => { navigateTo('auth'); setAuthMode('login'); setAuthMessage({type:'', text:''}); }} className="nav-btn-primary">ލޮގިން</button>
            )}
         </div>
-      </div>
+      </header>
 
       {view === 'info' && (
         <div style={styles.centeredContainer}>
@@ -684,7 +691,7 @@ export default function App() {
             
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600" alt="Math" style={styles.cardImg}/>
-                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h3>
+                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz}>{user && profileData && !profileData.isMissing ? 'ޗެލެންޖް ފަށާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
@@ -1256,7 +1263,8 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, sh
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 style={{color: '#ff9800', textAlign: 'right'}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
-                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, width:'auto'}}>ލޮގްއައުޓް</button>
+                {/* 🔥 FIXED SECURE LOGOUT 🔥 */}
+                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, width:'auto', background: '#f44336'}}>ލޮގްއައުޓް</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1377,7 +1385,8 @@ function AdminPanel({
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 className="ltr-text" style={{textAlign: 'right'}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
-                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, width:'auto'}}>ލޮގްއައުޓް</button>
+                {/* 🔥 FIXED SECURE LOGOUT 🔥 */}
+                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, width:'auto', background: '#f44336'}}>ލޮގްއައުޓް</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
@@ -1471,10 +1480,7 @@ function AdminPanel({
 
 // --- STYLES ---
 const styles = {
-  appContainer: { minHeight: '100vh', background: '#f0f4f8', fontFamily: '"Faruma", Arial, sans-serif', direction: 'rtl', textAlign: 'right' },
-  navbar: { background: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
-  logo: { fontWeight: '900', fontSize: '24px', color: '#2e7d32', cursor: 'pointer' },
-  navBtn: { border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' },
+  appContainer: { minHeight: '100vh', background: '#f0f4f8', direction: 'rtl', textAlign: 'right' },
   container: { padding: '20px', maxWidth: '1400px', margin: '0 auto' },
   centeredGrid: { padding: '20px', maxWidth: '1000px', margin: '0 auto' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' },
@@ -1485,7 +1491,7 @@ const styles = {
   quranCard: { background: 'white', width: '100%', maxWidth: '450px', padding: '30px', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' },
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
   input: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', textAlign: 'right' },
-  inputLtr: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', fontFamily: 'Arial, sans-serif', textAlign: 'left', direction: 'ltr' },
+  inputLtr: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', textAlign: 'left', direction: 'ltr' },
   btn: { padding: '12px', background: '#0056b3', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
   btnSecondary: { padding: '10px', background: '#666', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%' },
   optionBtn: { padding: '15px', background: '#f8f9fa', border: '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', textAlign: 'right', width:'100%', transition: 'all 0.2s', fontSize: '15px' },
