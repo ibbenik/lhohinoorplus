@@ -13,8 +13,8 @@ const BADGE_CONFIG = [
 
 // 🎁 PREMIUM SVG GIFT STORE SETTINGS
 const GIFTS_CONFIG = [
-    { id: 'sweets', name: 'ޗޮކްލެޓް / މެޓާ', cost: 50, icon: <svg width="40" height="40" fill="none" stroke="#e91e63" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.66 4.88a2.54 2.54 0 00-3.59 0l-2.19 2.2a2.54 2.54 0 000 3.59l6.36 6.36a2.54 2.54 0 003.59 0l2.19-2.2a2.54 2.54 0 000-3.59l-6.36-6.36z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9.19 7.42l5.66 5.66M6.41 15.89l-2.12 3.82a1.41 1.41 0 001.98 1.98l3.82-2.12M17.59 8.11l2.12-3.82a1.41 1.41 0 00-1.98-1.98l-3.82 2.12" /></svg> },
-    { id: 'stationery', name: 'ސްޓޭޝަނަރީ ޕެކް', cost: 100, icon: <svg width="40" height="40" fill="none" stroke="#00bcd4" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> },
+    { id: 'sweets', name: 'ޗޮކްލެޓް / މެޓާ', cost: 200, icon: <svg width="40" height="40" fill="none" stroke="#e91e63" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.66 4.88a2.54 2.54 0 00-3.59 0l-2.19 2.2a2.54 2.54 0 000 3.59l6.36 6.36a2.54 2.54 0 003.59 0l2.19-2.2a2.54 2.54 0 000-3.59l-6.36-6.36z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9.19 7.42l5.66 5.66M6.41 15.89l-2.12 3.82a1.41 1.41 0 001.98 1.98l3.82-2.12M17.59 8.11l2.12-3.82a1.41 1.41 0 00-1.98-1.98l-3.82 2.12" /></svg> },
+    { id: 'stationery', name: 'ސްޓޭޝަނަރީ ޕެކް', cost: 500, icon: <svg width="40" height="40" fill="none" stroke="#00bcd4" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> },
     { id: 'ice_cream', name: 'އައިސްކްރީމް', cost: 300, icon: <svg width="40" height="40" fill="none" stroke="#ff9800" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.701 2.701 0 00-1.5-.454M9 6v2m3-2v2m3-2v2M9 3h.01M12 3h.01M15 3h.01M21 21v-7a2 2 0 00-2-2H5a2 2 0 00-2 2v7h18zm-3-9v-2a2 2 0 00-2-2H8a2 2 0 00-2 2v2h12z"/></svg> },
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
@@ -99,17 +99,30 @@ export default function App() {
   const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
+  // 🔥 SECURE ROUTING HELPER 🔥
+  const routeUser = async (userObj) => {
+      if (userObj.email === 'admin@lhohi.mv') {
+          navigateTo('admin');
+          loadAdminData();
+      } else if (userObj.email === 'shop@lhohi.mv') {
+          navigateTo('shop_admin');
+          loadShopAdminData();
+      } else {
+          await fetchProfileDetails(userObj.id);
+      }
+  };
+
   useEffect(() => {
     fetchLatestWinner();
     fetchPartners(); 
     fetchLeaderboards(); 
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setUser(session.user); fetchProfileDetails(session.user.id); }
+      if (session?.user) { setUser(session.user); routeUser(session.user); }
     });
     supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY') { navigateTo('auth'); setAuthMode('update_password'); showToast('އައު ޕާސްވޯޑެއް ޖައްސަވާ!', 'success'); }
-        if (event === 'SIGNED_IN' && session) { setUser(session.user); fetchProfileDetails(session.user.id); }
+        if (event === 'SIGNED_IN' && session) { setUser(session.user); routeUser(session.user); }
         if (event === 'SIGNED_OUT') { setUser(null); setProfileData(null); navigateTo('home'); prevBadgeCountRef.current = 0; }
     });
     setWinnerDate(getActiveQuizDate());
@@ -168,6 +181,7 @@ export default function App() {
         let spentCoins = 0;
 
         if (data.parent_phone) {
+            // 1. Earned from Quizzes
             const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('phone', data.parent_phone);
             if (genAttempts) {
                 totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -175,6 +189,7 @@ export default function App() {
                 calculatedCoins += (passedGeneral * 5);
             }
 
+            // 2. Earned from Math
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -182,6 +197,7 @@ export default function App() {
                 calculatedCoins += (passedMath * 5);
             }
 
+            // 3. Deduct Spent Coins (Purchases)
             const { data: purchaseData, error: pErr } = await supabase.from('lhohinoor_purchases').select('*').eq('phone', data.parent_phone);
             if (!pErr && purchaseData) {
                 spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
@@ -191,6 +207,7 @@ export default function App() {
         
         if (data.level) calculatedCoins += 100;
 
+        // FINAL BALANCE
         const currentBalance = calculatedCoins - spentCoins;
 
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
@@ -251,20 +268,11 @@ export default function App() {
     setLoading(false);
   };
 
-  // 🔥 UPDATED AUTH TO INCLUDE SHOP ADMIN 🔥
+  // 🔥 SECURE LOGIN PROCESS 🔥
   const handleAuth = async (e) => {
     e.preventDefault(); setLoading(true); 
     try {
       const d = Object.fromEntries(new FormData(e.target));
-      
-      // MAIN ADMIN CHECK
-      if ((d.login_identifier.toLowerCase() === 'admin@lhohi.mv' || d.login_identifier.toUpperCase() === 'ADMIN01') && d.password === 'admin123') { 
-          navigateTo('admin'); loadAdminData(); setLoading(false); return; 
-      }
-      // SHOP ADMIN CHECK
-      if ((d.login_identifier.toLowerCase() === 'shop@lhohi.mv' || d.login_identifier.toUpperCase() === 'SHOP01') && d.password === 'shop123') { 
-          navigateTo('shop_admin'); loadShopAdminData(); setLoading(false); return; 
-      }
 
       if (authMode === 'signup') {
           if (d.password.length < 6) { showToast('ޕާސްވޯޑްގައި މަދުވެގެން 6 އަކުރު ހުންނަންވާނެ.', 'error'); setLoading(false); return; }
@@ -277,8 +285,15 @@ export default function App() {
       } else if (authMode === 'login') {
           let loginEmail = d.login_identifier.trim();
           if (!loginEmail.includes('@')) loginEmail = `${loginEmail.toUpperCase()}@lhohi.mv`;
+          
+          // SECURE LOGIN VIA SUPABASE
           const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: d.password });
-          if (error) { showToast('އީމެއިލް/އައި.ޑީ ނުވަތަ ޕާސްވޯޑް ނުބައި.', 'error'); } else { setUser(data.user); await fetchProfileDetails(data.user.id); }
+          if (error) { 
+              showToast('އީމެއިލް/އައި.ޑީ ނުވަތަ ޕާސްވޯޑް ނުބައި.', 'error'); 
+          } else { 
+              setUser(data.user); 
+              routeUser(data.user); 
+          }
       } else if (authMode === 'forgot_password') {
           const { error } = await supabase.auth.resetPasswordForEmail(d.email, { redirectTo: window.location.origin });
           if (error) showToast(error.message, 'error'); else showToast('ޕާސްވޯޑް ރިސެޓް ލިންކް ފޮނުވިއްޖެ!', 'success');
@@ -590,7 +605,7 @@ export default function App() {
         <div style={{display:'flex', gap:10}}>
            <button onClick={() => navigateTo('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
            <button onClick={() => navigateTo('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
-           {user && !profileData?.isMissing ? (
+           {user && !profileData?.isMissing && user.email !== 'admin@lhohi.mv' && user.email !== 'shop@lhohi.mv' ? (
                <button onClick={() => {navigateTo('dashboard', 'overview');}} style={{...styles.navBtn, color: '#0056b3'}}>ޑޭޝްބޯޑު</button>
            ) : (
                !user && <button onClick={() => { navigateTo('auth'); setAuthMode('login'); setAuthMessage({type:'', text:''}); }} style={styles.navBtn}>ލޮގިން</button>
@@ -1036,12 +1051,11 @@ export default function App() {
                 <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
                     <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
                         <div style={{position:'absolute', top:0, right:0, background:'#0056b3', color:'white', padding:'5px 15px', borderBottomLeftRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>ޤުރުއާން މުބާރާތް</div>
-                        
+                        <BrandLogo />
                         <div style={{textAlign:'center', marginBottom: '20px', borderBottom: '2px dashed #ccc', paddingBottom: '15px'}}>
-                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގެ ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
+                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
                             <p className="ltr-text" style={{margin:0, color:'#666', fontSize:'13px', textAlign: 'center'}}>The Secretariat of the Lhohi Council</p>
                         </div>
-
                         <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
                             <tbody>
                                 <tr><td className="slip-label">ނަން:</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
@@ -1187,7 +1201,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ADMIN PORTALS */}
+      {/* SECURE ADMIN PORTALS */}
       {view === 'admin' && (
           <AdminPanel 
               allStudents={allStudents} 
@@ -1352,7 +1366,7 @@ function AdminPanel({
         const eligibleCandidates = attempts.filter(attempt => !recentWinnerPhones.includes(attempt.phone));
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
-          // 🔥 NEW: SET STATUS TO PENDING FOR SHOP ADMIN 🔥
+          // 🔥 STATUS SET TO PENDING FOR SHOP ADMIN 🔥
           await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
           showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
         } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
@@ -1412,6 +1426,7 @@ function AdminPanel({
                 </div>
             )}
 
+            {/* NEW MATH ADMIN TAB */}
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <h3 style={{color: '#1976d2'}}>ހިސާބު ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
