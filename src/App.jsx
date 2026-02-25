@@ -19,10 +19,12 @@ const GIFTS_CONFIG = [
     { id: 'voucher', name: '50ރ ގިފްޓް ވައުޗަރ', cost: 1000, icon: <svg width="40" height="40" fill="none" stroke="#4caf50" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg> }
 ];
 
-// REUSABLE PREMIUM LOGO COMPONENT
+// REUSABLE PREMIUM LOGO COMPONENT (NOW WITH UNDERLINE)
 const BrandLogo = () => (
-    <div className="brand-logo fancy-dhivehi">
-        ޅޮހި<span>ނޫރު</span>
+    <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div className="brand-logo fancy-dhivehi" style={{ borderBottom: '3px solid #fbc02d', display: 'inline-block', paddingBottom: '5px', marginBottom: 0 }}>
+            ޅޮހި<span style={{color: '#fbc02d'}}>ނޫރު</span>
+        </div>
     </div>
 );
 
@@ -86,13 +88,16 @@ export default function App() {
   // --- STUDENT ORDERS STATE ---
   const [myOrders, setMyOrders] = useState([]);
 
-  // ADMIN STATE
+  // MAIN ADMIN STATE
   const [allStudents, setAllStudents] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
   const [partnerRequestsList, setPartnerRequestsList] = useState([]); 
-  const [allOrders, setAllOrders] = useState([]); 
   const [winnerDate, setWinnerDate] = useState('');
+
+  // SHOP ADMIN STATE
+  const [shopOrders, setShopOrders] = useState([]);
+  const [shopWinners, setShopWinners] = useState([]);
 
   useEffect(() => {
     fetchLatestWinner();
@@ -151,7 +156,6 @@ export default function App() {
     if (data) { setDailyWinner(data); setHasCongratulated(false); }
   };
 
-  // 🔥 WALLET LEDGER LOGIC 🔥
   const fetchProfileDetails = async (userId) => {
     const { data } = await supabase.from('lhohinoor_students').select('*').eq('id', userId).maybeSingle();
     
@@ -164,7 +168,6 @@ export default function App() {
         let spentCoins = 0;
 
         if (data.parent_phone) {
-            // 1. Earned from Quizzes
             const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('phone', data.parent_phone);
             if (genAttempts) {
                 totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -172,7 +175,6 @@ export default function App() {
                 calculatedCoins += (passedGeneral * 5);
             }
 
-            // 2. Earned from Math
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -180,7 +182,6 @@ export default function App() {
                 calculatedCoins += (passedMath * 5);
             }
 
-            // 3. Deduct Spent Coins (Purchases)
             const { data: purchaseData, error: pErr } = await supabase.from('lhohinoor_purchases').select('*').eq('phone', data.parent_phone);
             if (!pErr && purchaseData) {
                 spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
@@ -190,7 +191,6 @@ export default function App() {
         
         if (data.level) calculatedCoins += 100;
 
-        // FINAL BALANCE
         const currentBalance = calculatedCoins - spentCoins;
 
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
@@ -202,7 +202,7 @@ export default function App() {
         const enrichedData = { 
             ...data, 
             isMissing, 
-            total_coins: currentBalance, // Show Real Balance
+            total_coins: currentBalance, 
             quiz_total_score: totalGeneralScore,
             math_total_score: totalMathScore,
             unlocked_badges: unlockedBadgesCount, 
@@ -239,21 +239,33 @@ export default function App() {
     fetchPartners();
     const { data: r } = await supabase.from('lhohinoor_partner_requests').select('*');
     setPartnerRequestsList(r || []);
-    
-    // FETCH ORDERS FOR ADMIN
-    const { data: o } = await supabase.from('lhohinoor_purchases').select('*').order('created_at', { ascending: false });
-    setAllOrders(o || []);
-
     setLoading(false);
   };
 
+  const loadShopAdminData = async () => {
+    setLoading(true);
+    const { data: o } = await supabase.from('lhohinoor_purchases').select('*').order('created_at', { ascending: false });
+    setShopOrders(o || []);
+    const { data: w } = await supabase.from('lhohinoor_daily_winners').select('*').order('won_at', { ascending: false });
+    setShopWinners(w || []);
+    setLoading(false);
+  };
+
+  // 🔥 UPDATED AUTH TO INCLUDE SHOP ADMIN 🔥
   const handleAuth = async (e) => {
     e.preventDefault(); setLoading(true); 
     try {
       const d = Object.fromEntries(new FormData(e.target));
-      if (authMode === 'login' && (d.login_identifier === 'admin@lhohi.mv' || d.login_identifier.toUpperCase() === 'ADMIN01') && d.password === 'admin123') { 
+      
+      // MAIN ADMIN CHECK
+      if ((d.login_identifier.toLowerCase() === 'admin@lhohi.mv' || d.login_identifier.toUpperCase() === 'ADMIN01') && d.password === 'admin123') { 
           navigateTo('admin'); loadAdminData(); setLoading(false); return; 
       }
+      // SHOP ADMIN CHECK
+      if ((d.login_identifier.toLowerCase() === 'shop@lhohi.mv' || d.login_identifier.toUpperCase() === 'SHOP01') && d.password === 'shop123') { 
+          navigateTo('shop_admin'); loadShopAdminData(); setLoading(false); return; 
+      }
+
       if (authMode === 'signup') {
           if (d.password.length < 6) { showToast('ޕާސްވޯޑްގައި މަދުވެގެން 6 އަކުރު ހުންނަންވާނެ.', 'error'); setLoading(false); return; }
           const { data: auth, error } = await supabase.auth.signUp({ email: d.email, password: d.password });
@@ -301,7 +313,6 @@ export default function App() {
       setLoading(false);
   };
 
-  // 🔥 DIGITAL WALLET: BUY ITEM FUNCTION 🔥
   const handlePurchase = async (gift) => {
       if (!user || !profileData) return;
       if (profileData.total_coins < gift.cost) {
@@ -320,11 +331,9 @@ export default function App() {
               status: 'Pending'
           }]);
 
-          if (error) {
-              showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error');
-          } else {
+          if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
               showToast('🎉 އިނާމު ގަނެވިއްޖެ! ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ.', 'success');
-              await fetchProfileDetails(user.id); // Refresh wallet balance!
+              await fetchProfileDetails(user.id); 
           }
           setLoading(false);
       }
@@ -397,7 +406,6 @@ export default function App() {
       const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
       if (attErr) { showToast("Database error. Have you created the tables?", "error"); setQuizLoading(false); return; }
       
-      // ONLY 1 ATTEMPT PER DAY
       if (attempts && attempts.length >= 1) {
           showToast("މިއަދުގެ ފުރުޞަތު ވަނީ ބޭނުންކޮށްފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return;
@@ -543,15 +551,15 @@ export default function App() {
         .gift-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-top: 15px; }
         .gift-card { background: white; border: 1px solid #eee; border-radius: 12px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 
-        .official-slip-table td { padding: 8px 0; border-bottom: 1px solid #eee; }
+        .official-slip-table td { padding: 10px 0; border-bottom: 1px dashed #eee; }
         .official-slip-table tr:last-child td { border-bottom: none; }
-        .slip-label { color: #555; width: 35%; font-size: 13px; }
-        .slip-value { font-weight: bold; color: #000; font-size: 14px; }
+        .slip-label { color: #555; width: 40%; font-size: 14px; }
+        .slip-value { font-weight: bold; color: #000; font-size: 15px; }
         
-        .leaderboard-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
-        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; }
-        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; }
-        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; }
+        .leaderboard-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; font-size: 15px; }
+        .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; font-size: 18px; }
+        .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
+        .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
         `}
       </style>
 
@@ -633,19 +641,15 @@ export default function App() {
       {view === 'home' && (
         <div style={styles.centeredGrid}>
             
-          <div style={{textAlign: 'center', marginBottom: '30px', marginTop: '20px'}} className="animate-card">
-              <div style={{ background: 'linear-gradient(135deg, #0056b3, #00a8ff)', width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 15px', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 10px 20px rgba(0,86,179,0.3)' }}>
-                  <svg width="40" height="40" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-              </div>
+          <div className="animate-card">
               <BrandLogo />
-              <p style={{color: '#555', marginTop: '-10px', fontSize: '18px', fontWeight: 'bold'}}>އުނގެނުމުގެ އާ ދަތުރެއް</p>
+              <p style={{color: '#555', marginTop: '-10px', fontSize: '18px', fontWeight: 'bold', textAlign: 'center'}}>އުނގެނުމުގެ އާ ދަތުރެއް</p>
           </div>
 
           {dailyWinner && showWinnerCard && (
             <div className="winner-card" ref={animationContainerRef}>
               <button className="close-btn" onClick={() => setShowWinnerCard(false)}>✕</button>
-              <div className="celebration-banner">🎉 މަރުޙަބާ 🎉</div>
-              <h3 style={{margin:'5px 0', fontSize:'16px'}}>މިއަދުގެ ނަސީބުވެރިޔާ</h3>
+              <div className="celebration-banner">🎉 މިއަދުގެ ނަސީބުވެރިޔާ 🎉</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '10px 0' }}>
                   <h2 style={{color:'#2e7d32', margin: 0, fontSize: '24px'}}>{dailyWinner.username}</h2>
                   <div style={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#fff', color: '#d32f2f', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: '20px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(211,47,47,0.1)', transition: 'all 0.2s ease', fontSize: '14px', userSelect: 'none'}} onClick={handleCongratulate}>❤️ <span className="ltr-text" style={{fontWeight: 'bold', fontSize: '13px', color: '#c62828', width: 'auto'}}>{dailyWinner.congrats_count || 0}</span></div>
@@ -665,7 +669,7 @@ export default function App() {
             
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600" alt="Math" style={styles.cardImg}/>
-                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h3>
+                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz}>{user && profileData && !profileData.isMissing ? 'ޗެލެންޖް ފަށާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
@@ -910,8 +914,8 @@ export default function App() {
                     
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right'}}>
                         <h4 style={{margin: '0 0 5px 0', color: '#d32f2f'}}>💯 ސްކޯ ބޯޑު</h4>
-                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ކުއިޒް ފާސްވި އަދަދު:</b> {(profileData.quiz_total_score || 0) / 5}</p>
-                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ހިސާބު ފާސްވި އަދަދު:</b> {(profileData.math_total_score || 0) / 5}</p>
+                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ކުއިޒް ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.quiz_total_score || 0) / 5}</span></p>
+                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ހިސާބު ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.math_total_score || 0) / 5}</span></p>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{profileData.marks || 'ނުލިބޭ'}</span></p>
                     </div>
 
@@ -1032,11 +1036,12 @@ export default function App() {
                 <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
                     <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
                         <div style={{position:'absolute', top:0, right:0, background:'#0056b3', color:'white', padding:'5px 15px', borderBottomLeftRadius:'12px', fontSize:'12px', fontWeight:'bold'}}>ޤުރުއާން މުބާރާތް</div>
-                        <BrandLogo />
+                        
                         <div style={{textAlign:'center', marginBottom: '20px', borderBottom: '2px dashed #ccc', paddingBottom: '15px'}}>
-                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
+                            <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގެ ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
                             <p className="ltr-text" style={{margin:0, color:'#666', fontSize:'13px', textAlign: 'center'}}>The Secretariat of the Lhohi Council</p>
                         </div>
+
                         <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
                             <tbody>
                                 <tr><td className="slip-label">ނަން:</td><td className="slip-value" style={{fontSize: '16px'}}>{profileData.student_name || '-'}</td></tr>
@@ -1182,14 +1187,13 @@ export default function App() {
         </div>
       )}
 
-      {/* ADMIN PANEL */}
+      {/* ADMIN PORTALS */}
       {view === 'admin' && (
           <AdminPanel 
               allStudents={allStudents} 
               allQuestions={allQuestions} 
               allPartners={allPartners} 
               partnerRequestsList={partnerRequestsList} 
-              allOrders={allOrders}
               winnerDate={winnerDate} 
               setWinnerDate={setWinnerDate} 
               loadAdminData={loadAdminData} 
@@ -1199,13 +1203,114 @@ export default function App() {
               showToast={showToast}
           />
       )}
+
+      {view === 'shop_admin' && (
+          <ShopAdminPanel 
+              shopOrders={shopOrders} 
+              shopWinners={shopWinners} 
+              loadShopAdminData={loadShopAdminData} 
+              styles={styles}
+              showToast={showToast}
+          />
+      )}
     </div>
   );
 }
 
-// INLINED ADMIN PANEL
+// 🔥 NEW: SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
+function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, showToast }) {
+    const [shopTab, setShopTab] = useState('orders');
+
+    const deliverOrder = async (id) => {
+        if(window.confirm("މި އިނާމު ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
+            await supabase.from('lhohinoor_purchases').update({ status: 'Delivered' }).eq('id', id); 
+            loadShopAdminData(); 
+            showToast('އޯޑަރު ދޫކުރެވިއްޖެ!', 'success');
+        }
+    };
+
+    const deliverVoucher = async (id) => {
+        if(window.confirm("މި ވައުޗަރ ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
+            await supabase.from('lhohinoor_daily_winners').update({ status: 'Delivered' }).eq('id', id); 
+            loadShopAdminData(); 
+            showToast('ވައުޗަރ ދޫކުރެވިއްޖެ!', 'success');
+        }
+    };
+
+    return (
+        <div style={styles.container}>
+          <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
+                <h2 style={{color: '#ff9800', textAlign: 'right'}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
+                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, width:'auto'}}>ލޮގްއައުޓް</button>
+            </div>
+            
+            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
+                <button style={{...styles.tab, borderBottom: shopTab==='orders'?'3px solid #ff9800':'none', color: shopTab==='orders'?'#ff9800':''}} onClick={()=>setShopTab('orders')}>އިނާމު އޯޑަރުތައް</button>
+                <button style={{...styles.tab, borderBottom: shopTab==='vouchers'?'3px solid #ff9800':'none', color: shopTab==='vouchers'?'#ff9800':''}} onClick={()=>setShopTab('vouchers')}>ކުއިޒް ވައުޗަރުތައް</button>
+            </div>
+
+            {shopTab === 'orders' && (
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                    <table style={{...styles.table, minWidth: '800px'}}>
+                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ކޮއިން</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
+                        <tbody>
+                            {shopOrders.length > 0 ? shopOrders.map(o => (
+                                <tr key={o.id}>
+                                    <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
+                                    <td>{o.student_name}</td>
+                                    <td className="ltr-text">{o.phone}</td>
+                                    <td>{o.item_name}</td>
+                                    <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
+                                    <td style={{color: o.status === 'Pending' ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{o.status === 'Pending' ? 'ނުދީ' : 'ދީފި'}</td>
+                                    <td>
+                                        {o.status === 'Pending' ? (
+                                            <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverOrder(o.id)}>ދީފިން (Deliver)</button>
+                                        ) : (
+                                            <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            )) : <tr><td colSpan="7" style={{textAlign: 'center', padding: '20px'}}>އަދި އޯޑަރެއް ނެތް</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {shopTab === 'vouchers' && (
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                    <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކޮންމެ ދުވަހެއްގެ ކުއިޒް ނަސީބުވެރިޔާއަށް ދެވޭ 100 ރުފިޔާގެ ވައުޗަރ ހަވާލުކުރުން.</p>
+                    <table style={{...styles.table, minWidth: '800px'}}>
+                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
+                        <tbody>
+                            {shopWinners.length > 0 ? shopWinners.map(w => (
+                                <tr key={w.id}>
+                                    <td className="ltr-text" style={{fontSize: '12px'}}>{w.won_at}</td>
+                                    <td>{w.username}</td>
+                                    <td className="ltr-text">{w.phone}</td>
+                                    <td>{w.prize}</td>
+                                    <td style={{color: w.status === 'Pending' || !w.status ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{w.status === 'Pending' || !w.status ? 'ނުދީ' : 'ދީފި'}</td>
+                                    <td>
+                                        {w.status === 'Pending' || !w.status ? (
+                                            <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverVoucher(w.id)}>ދީފިން (Deliver)</button>
+                                        ) : (
+                                            <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            )) : <tr><td colSpan="6" style={{textAlign: 'center', padding: '20px'}}>އަދި ނަސީބުވެރިޔަކު ނެތް</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+          </div>
+        </div>
+    );
+}
+
+// INLINED MAIN ADMIN PANEL
 function AdminPanel({ 
-    allStudents, allQuestions, allPartners, partnerRequestsList, allOrders,
+    allStudents, allQuestions, allPartners, partnerRequestsList, 
     winnerDate, setWinnerDate, loadAdminData, getActiveQuizDate, 
     fetchLatestWinner, styles, showToast
 }) {
@@ -1220,14 +1325,6 @@ function AdminPanel({
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
     const deleteStudent = async (id) => { if(window.confirm("މި ދަރިވަރު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_students').delete().eq('id', id); loadAdminData(); } };
     
-    // NEW: ADMIN ORDER FULFILLMENT
-    const deliverOrder = async (id) => {
-        if(window.confirm("މި އިނާމު ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
-            await supabase.from('lhohinoor_purchases').update({ status: 'Delivered' }).eq('id', id); 
-            loadAdminData(); 
-        }
-    };
-
     // BULK UPLOAD MATH QUESTIONS
     const handleBulkMathUpload = async () => {
         try {
@@ -1255,7 +1352,8 @@ function AdminPanel({
         const eligibleCandidates = attempts.filter(attempt => !recentWinnerPhones.includes(attempt.phone));
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
-          await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0 }]);
+          // 🔥 NEW: SET STATUS TO PENDING FOR SHOP ADMIN 🔥
+          await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
           showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
         } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
     };
@@ -1268,11 +1366,10 @@ function AdminPanel({
                 <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, width:'auto'}}>ލޮގްއައުޓް</button>
             </div>
             
-            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
+            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
                 <button style={{...styles.tab, borderBottom: adminTab==='students'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('students')}>ދަރިވަރުން</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='quiz'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('quiz')}>ސުވާލު މުބާރާތް</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: adminTab==='math'?'#1976d2':''}} onClick={()=>setAdminTab('math')}>ހިސާބު ސުވާލު</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='orders'?'3px solid #ff9800':'none', color: adminTab==='orders'?'#ff9800':''}} onClick={()=>setAdminTab('orders')}>އިނާމު އޯޑަރުތައް</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ހިސާބު ސުވާލުތައް</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
             </div>
             
@@ -1293,7 +1390,7 @@ function AdminPanel({
             {adminTab === 'quiz' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form className="q-form" onSubmit={saveQuestion} style={{...styles.form, minWidth: '600px'}}>
-                        <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކޭ'} ސުވާލު</h3>
+                        <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކުރޭ'} ސުވާލު</h3>
                         <label style={{fontSize:'12px', color:'#666'}}>މި ސުވާލު ފެންނަންވީ ތާރީޚް:</label>
                         <input name="quiz_date" type="date" defaultValue={editingQ?.quiz_date || getActiveQuizDate()} style={{...styles.input, width: '200px'}} required />
                         <input name="question_text" placeholder="ސުވާލު" defaultValue={editingQ?.question_text} style={{...styles.input, direction:'rtl'}} required />
@@ -1326,35 +1423,6 @@ function AdminPanel({
                         style={{...styles.inputLtr, height: '200px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}}
                     />
                     <button onClick={handleBulkMathUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>އަޕްލޯޑް ކުރޭ</button>
-                </div>
-            )}
-
-            {/* 🔥 THE MISSING ORDERS TAB UI 🔥 */}
-            {adminTab === 'orders' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <h3 style={{color: '#ff9800'}}>ދަރިވަރުންގެ އޯޑަރުތައް (Gift Shop Orders)</h3>
-                    <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ކޮއިން</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>
-                            {allOrders.length > 0 ? allOrders.map(o => (
-                                <tr key={o.id}>
-                                    <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
-                                    <td>{o.student_name}</td>
-                                    <td className="ltr-text">{o.phone}</td>
-                                    <td>{o.item_name}</td>
-                                    <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
-                                    <td style={{color: o.status === 'Pending' ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{o.status === 'Pending' ? 'ނުދީ' : 'ދީފި'}</td>
-                                    <td>
-                                        {o.status === 'Pending' ? (
-                                            <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverOrder(o.id)}>ދީފިން (Deliver)</button>
-                                        ) : (
-                                            <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            )) : <tr><td colSpan="7" style={{textAlign: 'center', padding: '20px'}}>އަދި އޯޑަރެއް ނެތް</td></tr>}
-                        </tbody>
-                    </table>
                 </div>
             )}
 
