@@ -683,7 +683,7 @@ export default function App() {
           <div style={styles.grid}>
             
             <div style={styles.card} className="animate-card">
-                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg}/>
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={styles.btn} onClick={startQuiz}>{user && profileData && !profileData.isMissing ? 'ކުއިޒް ފަށަމާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
@@ -697,7 +697,7 @@ export default function App() {
             </div>
 
             <div style={styles.card} className="animate-card">
-                <img src="https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=600" alt="Quran" style={styles.cardImg}/>
+                <img src="https://i.pinimg.com/736x/cd/5b/17/cd5b1758007ccefc5122105d2b8e658e.jpg" alt="Quran" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>📖 ޤުރުއާން މުބާރާތް</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>މުބާރާތުގެ މަޢުލޫމާތާއި ނަތީޖާ</p>
                 <button style={styles.btn} onClick={() => { user && !profileData?.isMissing ? (() => {navigateTo('dashboard', 'programs');})() : (() => { navigateTo('auth'); setAuthMode('login'); })(); }}>ލޮގިން / ސްޓޫޑެންޓް ހަބް</button>
