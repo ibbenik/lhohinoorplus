@@ -30,7 +30,7 @@ export default function App() {
   const [view, setView] = useState('home'); 
   const [dashView, setDashView] = useState('overview'); 
 
-  // 🔥 NEW: BROWSER BACK BUTTON SUPPORT 🔥
+  // 🔥 BROWSER BACK BUTTON SUPPORT 🔥
   const navigateTo = (newView, newDashView = 'overview') => {
       window.history.pushState({ view: newView, dashView: newDashView }, '', '');
       setView(newView);
@@ -50,7 +50,6 @@ export default function App() {
       window.history.replaceState({ view: 'home', dashView: 'overview' }, '', '');
       return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
 
   const [dailyWinner, setDailyWinner] = useState(null);
   const [showWinnerCard, setShowWinnerCard] = useState(true);
@@ -84,11 +83,15 @@ export default function App() {
   const [mathScore, setMathScore] = useState(0);
   const [mathLeaderboard, setMathLeaderboard] = useState([]);
 
+  // --- STUDENT ORDERS STATE ---
+  const [myOrders, setMyOrders] = useState([]);
+
   // ADMIN STATE
   const [allStudents, setAllStudents] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
   const [partnerRequestsList, setPartnerRequestsList] = useState([]); 
+  const [allOrders, setAllOrders] = useState([]); 
   const [winnerDate, setWinnerDate] = useState('');
 
   useEffect(() => {
@@ -148,6 +151,7 @@ export default function App() {
     if (data) { setDailyWinner(data); setHasCongratulated(false); }
   };
 
+  // 🔥 WALLET LEDGER LOGIC 🔥
   const fetchProfileDetails = async (userId) => {
     const { data } = await supabase.from('lhohinoor_students').select('*').eq('id', userId).maybeSingle();
     
@@ -157,8 +161,10 @@ export default function App() {
         let calculatedCoins = 0;
         let totalGeneralScore = 0;
         let totalMathScore = 0;
+        let spentCoins = 0;
 
         if (data.parent_phone) {
+            // 1. Earned from Quizzes
             const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('phone', data.parent_phone);
             if (genAttempts) {
                 totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -166,18 +172,28 @@ export default function App() {
                 calculatedCoins += (passedGeneral * 5);
             }
 
+            // 2. Earned from Math
             const { data: mathAttempts, error: mathErr } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
             if (!mathErr && mathAttempts) {
                 totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; // Pass math if score >= 3
+                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
                 calculatedCoins += (passedMath * 5);
+            }
+
+            // 3. Deduct Spent Coins (Purchases)
+            const { data: purchaseData, error: pErr } = await supabase.from('lhohinoor_purchases').select('*').eq('phone', data.parent_phone);
+            if (!pErr && purchaseData) {
+                spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
+                setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
             }
         }
         
         if (data.level) calculatedCoins += 100;
 
-        const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
+        // FINAL BALANCE
+        const currentBalance = calculatedCoins - spentCoins;
 
+        const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
         if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
             setCelebrationBadge(BADGE_CONFIG[unlockedBadgesCount - 1]);
         }
@@ -186,7 +202,7 @@ export default function App() {
         const enrichedData = { 
             ...data, 
             isMissing, 
-            total_coins: calculatedCoins, 
+            total_coins: currentBalance, // Show Real Balance
             quiz_total_score: totalGeneralScore,
             math_total_score: totalMathScore,
             unlocked_badges: unlockedBadgesCount, 
@@ -223,6 +239,11 @@ export default function App() {
     fetchPartners();
     const { data: r } = await supabase.from('lhohinoor_partner_requests').select('*');
     setPartnerRequestsList(r || []);
+    
+    // FETCH ORDERS FOR ADMIN
+    const { data: o } = await supabase.from('lhohinoor_purchases').select('*').order('created_at', { ascending: false });
+    setAllOrders(o || []);
+
     setLoading(false);
   };
 
@@ -278,6 +299,35 @@ export default function App() {
           showToast('ޕްރޮފައިލް ސޭވް ކުރެވިއްޖެ!', 'success'); await fetchProfileDetails(user.id); setIsEditingProfile(false);
       }
       setLoading(false);
+  };
+
+  // 🔥 DIGITAL WALLET: BUY ITEM FUNCTION 🔥
+  const handlePurchase = async (gift) => {
+      if (!user || !profileData) return;
+      if (profileData.total_coins < gift.cost) {
+          showToast('މި އިނާމު ގަތުމަށް ކޮއިން މަދު!', 'error');
+          return;
+      }
+      
+      if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
+          setLoading(true);
+          const { error } = await supabase.from('lhohinoor_purchases').insert([{
+              phone: profileData.parent_phone,
+              student_name: profileData.student_name,
+              item_id: gift.id,
+              item_name: gift.name,
+              cost: gift.cost,
+              status: 'Pending'
+          }]);
+
+          if (error) {
+              showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error');
+          } else {
+              showToast('🎉 އިނާމު ގަނެވިއްޖެ! ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ.', 'success');
+              await fetchProfileDetails(user.id); // Refresh wallet balance!
+          }
+          setLoading(false);
+      }
   };
 
   const handlePartnerForm = async (e) => {
@@ -347,6 +397,7 @@ export default function App() {
       const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
       if (attErr) { showToast("Database error. Have you created the tables?", "error"); setQuizLoading(false); return; }
       
+      // ONLY 1 ATTEMPT PER DAY
       if (attempts && attempts.length >= 1) {
           showToast("މިއަދުގެ ފުރުޞަތު ވަނީ ބޭނުންކޮށްފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return;
@@ -605,23 +656,20 @@ export default function App() {
           
           <div style={styles.grid}>
             
-            {/* GENERAL QUIZ CARD */}
             <div style={styles.card} className="animate-card">
-                <img src="https://i.pinimg.com/736x/cd/5b/17/cd5b1758007ccefc5122105d2b8e658e.jpg" alt="Quiz" style={styles.cardImg}/>
+                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={styles.btn} onClick={startQuiz}>{user && profileData && !profileData.isMissing ? 'ކުއިޒް ފަށަމާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
             
-            {/* MATHS CHALLENGE CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600" alt="Math" style={styles.cardImg}/>
-                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h3>
+                <h3 style={{margin: '10px 0', color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h3>
                 <p style={{fontSize: '13px', color: '#555', marginBottom: '15px'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz}>{user && profileData && !profileData.isMissing ? 'ޗެލެންޖް ފަށާ!' : 'ކުޅުމަށް ލޮގިން ކުރައްވާ'}</button>
             </div>
 
-            {/* QURAN CARD */}
             <div style={styles.card} className="animate-card">
                 <img src="https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=600" alt="Quran" style={styles.cardImg}/>
                 <h3 style={{margin: '10px 0'}}>📖 ޤުރުއާން މުބާރާތް</h3>
@@ -630,7 +678,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* PARTNERS & FOOTER */}
           <div style={styles.partnerSection} className="animate-card">
               <h3 style={{color:'#2e7d32'}}>ބައިވެރިން</h3>
               <div style={styles.sponsorGrid}>
@@ -807,7 +854,7 @@ export default function App() {
                         <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}>
                             <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>
                         </div>
-                        <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން އިނާމު ހޯދާ!</p></div>
+                        <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ (Gift Shop)</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން އިނާމު ހޯދާ!</p></div>
                     </div>
                 </div>
             )}
@@ -865,7 +912,7 @@ export default function App() {
                         <h4 style={{margin: '0 0 5px 0', color: '#d32f2f'}}>💯 ސްކޯ ބޯޑު</h4>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ކުއިޒް ފާސްވި އަދަދު:</b> {(profileData.quiz_total_score || 0) / 5}</p>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ހިސާބު ފާސްވި އަދަދު:</b> {(profileData.math_total_score || 0) / 5}</p>
-                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> {profileData.marks || 'ނުލިބޭ'}</p>
+                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{profileData.marks || 'ނުލިބޭ'}</span></p>
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
@@ -886,14 +933,14 @@ export default function App() {
 
                     {/* 🔥 BOTH LEADERBOARDS EMBEDDED IN PROGRESS PAGE 🔥 */}
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#f9f9f9'}}>
-                        <h4 style={{margin: '0 0 10px 0', color: '#0056b3', borderBottom: '1px solid #ddd', paddingBottom: '5px'}}>🏆 މިއަދުގެ ކުއިޒް ލީޑަރބޯޑު</h4>
+                        <h4 style={{margin: '0 0 10px 0', color: '#0056b3', borderBottom: '1px solid #ddd', paddingBottom: '5px'}}>🏆 މިއަދުގެ ކުއިޒް ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
                         {leaderboard.length > 0 ? leaderboard.map((l, i) => (
                             <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#e3f2fd'}}>
-                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ ހިސާބު ލީޑަރބޯޑު</h4>
+                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ ހިސާބު ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
                         {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
                             <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
@@ -902,7 +949,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: GIFT SHOP */}
+            {/* VIEW: DIGITAL GIFT SHOP & WALLET */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -911,7 +958,7 @@ export default function App() {
                     </div>
                     
                     <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން:</span>
+                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
                         <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
@@ -925,16 +972,32 @@ export default function App() {
                                     <p className="ltr-text" style={{margin: '0 0 15px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
                                     
                                     <button 
-                                        onClick={() => showToast('🎉 އިނާމު ހޯދުމަށް ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ!', 'success')} 
-                                        disabled={!canAfford} 
+                                        onClick={() => handlePurchase(gift)} 
+                                        disabled={!canAfford || loading} 
                                         style={{...styles.btn, background: canAfford ? '#4caf50' : '#ddd', color: canAfford ? 'white' : '#999', padding: '8px', fontSize: '12px', cursor: canAfford ? 'pointer' : 'not-allowed'}}
                                     >
-                                        {canAfford ? 'ބަދަލުކުރޭ' : 'ކޮއިން މަދު'}
+                                        {loading ? '...' : canAfford ? 'ބަދަލުކުރޭ' : 'ކޮއިން މަދު'}
                                     </button>
                                 </div>
                             );
                         })}
                     </div>
+
+                    {/* SHOW ORDER HISTORY */}
+                    {myOrders.length > 0 && (
+                        <div style={{marginTop: '25px', textAlign: 'right', background: 'white', padding: '15px', borderRadius: '10px'}}>
+                            <h4 style={{margin: '0 0 10px 0', borderBottom: '1px solid #eee', paddingBottom: '5px'}}>މަގޭ އޯޑަރުތައް</h4>
+                            {myOrders.map(order => (
+                                <div key={order.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px dashed #eee'}}>
+                                    <span style={{fontSize: '13px'}}>{order.item_name} <span className="ltr-text" style={{fontSize:'10px', color:'#ff9800'}}>({order.cost} 🪙)</span></span>
+                                    <span style={{fontSize: '11px', padding: '3px 8px', borderRadius: '12px', background: order.status === 'Pending' ? '#fff3cd' : '#d4edda', color: order.status === 'Pending' ? '#856404' : '#155724'}}>
+                                        {order.status === 'Pending' ? 'ލިބެންހުރީ' : 'ދޫކުރެވިފައި'}
+                                    </span>
+                                </div>
+                            ))}
+                            <p style={{fontSize: '11px', color: '#888', marginTop: '10px', textAlign: 'center'}}>އިނާމު ހޯދުމަށް ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ.</p>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1036,7 +1099,7 @@ export default function App() {
                 <h2 style={{marginTop:0}}>ލިބިއްޖެ!</h2>
                 
                 <div style={{marginTop:'20px', textAlign:'right', background:'#f9f9f9', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
-                    <h4 style={{margin:'0 0 10px 0', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>މިއަދުގެ ޓޮප් 10</h4>
+                    <h4 style={{margin:'0 0 10px 0', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>🏆 މިއަދުގެ ޓޮޕް 10 ({getActiveQuizDate()})</h4>
                     {leaderboard.length > 0 ? leaderboard.map((l, i) => (
                         <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
@@ -1062,9 +1125,7 @@ export default function App() {
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
                 
-                {/* 🔥 ENGLISH (LTR) OVERRIDE FOR MATH QUESTIONS 🔥
-                    This ensures "10 + 5 = ?" looks correct and doesn't scramble.
-                */}
+                {/* 🔥 ENGLISH (LTR) OVERRIDE FOR MATH QUESTIONS 🔥 */}
                 <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'ltr', fontSize:'24px', color:'#333', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
@@ -1108,7 +1169,7 @@ export default function App() {
 
                 {/* MATH LEADERBOARD IN SUCCESS SCREEN */}
                 <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
-                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ހިސާބު ޓޮޕް 10</h4>
+                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ހިސާބު ޓޮޕް 10 ({getActiveQuizDate()})</h4>
                     {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
                         <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
@@ -1128,6 +1189,7 @@ export default function App() {
               allQuestions={allQuestions} 
               allPartners={allPartners} 
               partnerRequestsList={partnerRequestsList} 
+              allOrders={allOrders}
               winnerDate={winnerDate} 
               setWinnerDate={setWinnerDate} 
               loadAdminData={loadAdminData} 
@@ -1143,7 +1205,7 @@ export default function App() {
 
 // INLINED ADMIN PANEL
 function AdminPanel({ 
-    allStudents, allQuestions, allPartners, partnerRequestsList, 
+    allStudents, allQuestions, allPartners, partnerRequestsList, allOrders,
     winnerDate, setWinnerDate, loadAdminData, getActiveQuizDate, 
     fetchLatestWinner, styles, showToast
 }) {
@@ -1158,6 +1220,14 @@ function AdminPanel({
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
     const deleteStudent = async (id) => { if(window.confirm("މި ދަރިވަރު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_students').delete().eq('id', id); loadAdminData(); } };
     
+    // NEW: ADMIN ORDER FULFILLMENT
+    const deliverOrder = async (id) => {
+        if(window.confirm("މި އިނާމު ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
+            await supabase.from('lhohinoor_purchases').update({ status: 'Delivered' }).eq('id', id); 
+            loadAdminData(); 
+        }
+    };
+
     // BULK UPLOAD MATH QUESTIONS
     const handleBulkMathUpload = async () => {
         try {
@@ -1198,10 +1268,11 @@ function AdminPanel({
                 <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, width:'auto'}}>ލޮގްއައުޓް</button>
             </div>
             
-            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
+            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
                 <button style={{...styles.tab, borderBottom: adminTab==='students'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('students')}>ދަރިވަރުން</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='quiz'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('quiz')}>ސުވާލު މުބާރާތް</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ހިސާބު ސުވާލުތައް</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: adminTab==='math'?'#1976d2':''}} onClick={()=>setAdminTab('math')}>ހިސާބު ސުވާލު</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='orders'?'3px solid #ff9800':'none', color: adminTab==='orders'?'#ff9800':''}} onClick={()=>setAdminTab('orders')}>އިނާމު އޯޑަރުތައް</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
             </div>
             
@@ -1222,7 +1293,7 @@ function AdminPanel({
             {adminTab === 'quiz' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form className="q-form" onSubmit={saveQuestion} style={{...styles.form, minWidth: '600px'}}>
-                        <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކުރޭ'} ސުވާލު</h3>
+                        <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކޭ'} ސުވާލު</h3>
                         <label style={{fontSize:'12px', color:'#666'}}>މި ސުވާލު ފެންނަންވީ ތާރީޚް:</label>
                         <input name="quiz_date" type="date" defaultValue={editingQ?.quiz_date || getActiveQuizDate()} style={{...styles.input, width: '200px'}} required />
                         <input name="question_text" placeholder="ސުވާލު" defaultValue={editingQ?.question_text} style={{...styles.input, direction:'rtl'}} required />
@@ -1244,7 +1315,6 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* NEW MATH ADMIN TAB */}
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <h3 style={{color: '#1976d2'}}>ހިސާބު ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
@@ -1256,6 +1326,35 @@ function AdminPanel({
                         style={{...styles.inputLtr, height: '200px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}}
                     />
                     <button onClick={handleBulkMathUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>އަޕްލޯޑް ކުރޭ</button>
+                </div>
+            )}
+
+            {/* 🔥 THE MISSING ORDERS TAB UI 🔥 */}
+            {adminTab === 'orders' && (
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                    <h3 style={{color: '#ff9800'}}>ދަރިވަރުންގެ އޯޑަރުތައް (Gift Shop Orders)</h3>
+                    <table style={{...styles.table, minWidth: '800px'}}>
+                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ކޮއިން</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
+                        <tbody>
+                            {allOrders.length > 0 ? allOrders.map(o => (
+                                <tr key={o.id}>
+                                    <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
+                                    <td>{o.student_name}</td>
+                                    <td className="ltr-text">{o.phone}</td>
+                                    <td>{o.item_name}</td>
+                                    <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
+                                    <td style={{color: o.status === 'Pending' ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{o.status === 'Pending' ? 'ނުދީ' : 'ދީފި'}</td>
+                                    <td>
+                                        {o.status === 'Pending' ? (
+                                            <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverOrder(o.id)}>ދީފިން (Deliver)</button>
+                                        ) : (
+                                            <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            )) : <tr><td colSpan="7" style={{textAlign: 'center', padding: '20px'}}>އަދި އޯޑަރެއް ނެތް</td></tr>}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
@@ -1289,10 +1388,10 @@ function AdminPanel({
 
 // --- STYLES ---
 const styles = {
-  appContainer: { minHeight: '100vh', background: '#f0f4f8', fontFamily: '"Faruma", sans-serif', direction: 'rtl', textAlign: 'right' },
+  appContainer: { minHeight: '100vh', background: '#f0f4f8', fontFamily: '"Faruma", Arial, sans-serif', direction: 'rtl', textAlign: 'right' },
   navbar: { background: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
   logo: { fontWeight: '900', fontSize: '24px', color: '#2e7d32', cursor: 'pointer' },
-  navBtn: { border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontFamily: '"Faruma", sans-serif' },
+  navBtn: { border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' },
   container: { padding: '20px', maxWidth: '1400px', margin: '0 auto' },
   centeredGrid: { padding: '20px', maxWidth: '1000px', margin: '0 auto' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' },
@@ -1302,17 +1401,16 @@ const styles = {
   quizCard: { background: 'white', width: '100%', maxWidth: '500px', padding: '30px', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' },
   quranCard: { background: 'white', width: '100%', maxWidth: '450px', padding: '30px', borderRadius: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' },
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  input: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', fontFamily: '"Faruma", sans-serif', textAlign: 'right' },
-  inputLtr: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', fontFamily: 'sans-serif', textAlign: 'left', direction: 'ltr' },
-  btn: { padding: '12px', background: '#0056b3', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', width: '100%', fontFamily: '"Faruma", sans-serif' },
-  btnSecondary: { padding: '10px', background: '#666', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%', fontFamily: '"Faruma", sans-serif' },
-  optionBtn: { padding: '15px', background: '#f8f9fa', border: '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', textAlign: 'right', width:'100%', transition: 'all 0.2s', fontFamily: '"Faruma", sans-serif', fontSize: '15px' },
+  input: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', textAlign: 'right' },
+  inputLtr: { padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', boxSizing: 'border-box', fontFamily: 'Arial, sans-serif', textAlign: 'left', direction: 'ltr' },
+  btn: { padding: '12px', background: '#0056b3', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', width: '100%' },
+  btnSecondary: { padding: '10px', background: '#666', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%' },
+  optionBtn: { padding: '15px', background: '#f8f9fa', border: '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', textAlign: 'right', width:'100%', transition: 'all 0.2s', fontSize: '15px' },
   tabs: { display: 'flex', marginBottom: '20px' },
-  tab: { flex: 1, padding: '10px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontFamily: '"Faruma", sans-serif' },
+  tab: { flex: 1, padding: '10px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' },
   table: { width: '100%', borderCollapse: 'collapse', marginTop: '20px', textAlign: 'right' },
   tableInput: { width: '50px', padding: '5px', textAlign: 'center' },
   scrollArea: { maxHeight: '50vh', overflowY: 'auto', display:'flex', flexDirection:'column', gap:'10px' },
-  
   partnerSection: { background: 'white', padding: '30px 20px', borderRadius: '15px', marginTop: '40px', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' },
   sponsorGrid: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '15px', alignItems: 'center', marginTop: '20px' },
   sponsorImg: { maxWidth: '80px', maxHeight: '40px', objectFit: 'contain' },
