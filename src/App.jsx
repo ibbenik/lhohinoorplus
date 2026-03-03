@@ -378,7 +378,7 @@ export default function App() {
           }]);
 
           if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
-              showToast('🎉 އިނާމު ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
+              showToast('🎉 އިނާމު ގަނެވިއްޖެ! މިމަހުގެ ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
               await fetchProfileDetails(user.id); 
           }
           setLoading(false);
@@ -741,6 +741,9 @@ export default function App() {
                   <ul className="info-list">
                       <li>ކޮންމެ ދުވަހެއްގެ ނަސީބުވެރިޔާއަށް: <b>100 ރުފިޔާގެ ގިފްޓް ވައުޗަރެއް</b>.</li>
                       <li>ފިތުރު ޢީދު ދުވަހު ގުރުއަތުން ހޮވޭ ފަރާތަކަށް: <b>ބޮޑު އިނާމު</b>!</li>
+                       <li>ޅޮހިނޫރު ކުއިޒްތަކުގައި ބެިވެރިވެގެން ކޮއިންސް ހޯދޭނެ.. މިކޮއިންސް ބޭނުންކޮށްގެން ޅޮހިނޫރު އޮންލައިން ފިހާރައިން ތަކެތި ގަނެވޭނެ</b>!</li>
+                   <li> ތަކެތި ގަތުމުން އެމަހެއްގެ ބޮޑު ގުރއަތުގައި ބައިވެރިވެވޭނެ އަދި ނަސީބަކުން  ބޮޑު އިނާމެއް ލިބިދާނެ</b>!</li>
+              
                   </ul>
               </div>
 
@@ -802,11 +805,11 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 
                 <div className="marquee-wrapper">
                     <div className="marquee-content">
-                         ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 7 އަދި 8 ގައެވެ. 
+                         ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 9 އަދި 10 ގައެވެ. 
                     </div>
                 </div>
 
