@@ -24,7 +24,6 @@ export default function App() {
   const [view, setView] = useState('home'); 
   const [dashView, setDashView] = useState('overview'); 
 
-  // 🔥 BROWSER BACK BUTTON SUPPORT 🔥
   const navigateTo = (newView, newDashView = 'overview') => {
       window.history.pushState({ view: newView, dashView: newDashView }, '', '');
       setView(newView);
@@ -85,14 +84,13 @@ export default function App() {
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
   const [partnerRequestsList, setPartnerRequestsList] = useState([]); 
-  const [allGifts, setAllGifts] = useState([]); // 🔥 DYNAMIC GIFTS STATE
+  const [allGifts, setAllGifts] = useState([]); 
   const [winnerDate, setWinnerDate] = useState('');
 
   // SHOP ADMIN STATE
   const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
-  // 🔥 SECURE ROUTING HELPER 🔥
   const routeUser = async (userObj) => {
       if (userObj.email === 'admin@lhohi.mv') {
           navigateTo('admin');
@@ -109,7 +107,7 @@ export default function App() {
     fetchLatestWinner();
     fetchPartners(); 
     fetchLeaderboards(); 
-    fetchGifts(); // Fetch gifts on initial load for the shop previews
+    fetchGifts(); 
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); routeUser(session.user); }
@@ -158,7 +156,6 @@ export default function App() {
     await supabase.from('lhohinoor_daily_winners').update({ congrats_count: trueCount }).eq('id', dailyWinner.id);
   };
 
-  // 🚀 SHARE WINNER
   const handleShareWinner = async () => {
     if (!dailyWinner) return;
     const shareText = `🎉 ޅޮހިނޫރުގެ މިއަދުގެ ނަސީބުވެރިޔާ: ${dailyWinner.username}!\n🎁 ލިބުނު އިނާމު: ${dailyWinner.prize}\n\nމިހާރު ލޮގިން ކުރައްވައިގެން ކުއިޒް ކުޅުއްވާ:`;
@@ -240,7 +237,6 @@ export default function App() {
 
   const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data); };
   
-  // 🔥 FETCH GIFTS FROM DATABASE 🔥
   const fetchGifts = async () => {
       const { data } = await supabase.from('lhohinoor_gifts').select('*').order('cost', { ascending: true });
       if (data) setAllGifts(data);
@@ -567,9 +563,11 @@ export default function App() {
         .badge-locked { filter: grayscale(100%); opacity: 0.6; }
         .badge-unlocked { filter: drop-shadow(0px 4px 6px rgba(255,215,0,0.6)); border: 1px solid #fbc02d; background: #fffde7;}
 
-        .gift-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
-        .gift-card { background: white; border: 1px solid #eee; border-radius: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; }
+        .gift-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; margin-top: 15px; }
+        .gift-card { background: white; border: 1px solid #eee; border-radius: 12px; padding: 10px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .gift-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .gift-image-container { width: 90px; height: 90px; border-radius: 8px; overflow: hidden; margin-bottom: 10px; border: 1px solid #f0f0f0; display: flex; justify-content: center; align-items: center; background: #f9f9f9; }
+        .gift-image-container img { width: 100%; height: 100%; object-fit: cover; }
 
         .official-slip-table td { padding: 10px 0; border-bottom: 1px dashed #eee; }
         .official-slip-table tr:last-child td { border-bottom: none; }
@@ -605,37 +603,17 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 NEW NAVBAR WITH USER INFO & COINS 🔥 */}
+      {/* 🔥 ORIGINAL SIMPLE NAVBAR 🔥 */}
       <div style={styles.navbar}>
         <div style={styles.logo} onClick={() => navigateTo('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
-        <div style={{display:'flex', gap:10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+        <div style={{display:'flex', gap:10}}>
            <button onClick={() => navigateTo('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
-           <button onClick={() => navigateTo('public_shop')} style={{...styles.navBtn, color: '#e65100'}}>އިނާމު ފިހާރަ</button>
+           <button onClick={() => navigateTo('public_shop')} style={{...styles.navBtn, color: '#e65100'}}>އިނާމު</button>
            <button onClick={() => navigateTo('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
-           
            {user ? (
-               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: '5px', paddingLeft: '10px', borderLeft: '2px solid #eee' }}>
-                   {/* SHOW WELCOME & COINS IF NORMAL STUDENT */}
-                   {profileData && !profileData.isMissing && user.email !== 'admin@lhohi.mv' && user.email !== 'shop@lhohi.mv' && (
-                       <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
-                           <span style={{ fontSize: '12px', color: '#666' }}>މަރުޙަބާ, <b style={{color:'#0056b3'}}>{profileData.student_name.split(' ')[0]}</b></span><br/>
-                           <span className="ltr-text" style={{ fontSize: '14px', color: '#ff9800', fontWeight: 'bold' }}>🪙 {profileData.total_coins || 0}</span>
-                       </div>
-                   )}
-                   
-                   {/* DYNAMIC LOGGED-IN BUTTONS */}
-                   {user.email === 'admin@lhohi.mv' ? (
-                       <button onClick={() => navigateTo('admin')} style={{...styles.navBtn, background: '#0056b3', color: 'white', padding: '5px 12px', borderRadius: '15px'}}>އެޑްމިން</button>
-                   ) : user.email === 'shop@lhohi.mv' ? (
-                       <button onClick={() => navigateTo('shop_admin')} style={{...styles.navBtn, background: '#ff9800', color: 'white', padding: '5px 12px', borderRadius: '15px'}}>ފިހާރަ</button>
-                   ) : !profileData?.isMissing ? (
-                       <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.navBtn, background: '#0056b3', color: 'white', padding: '5px 12px', borderRadius: '15px'}}>ޑޭޝްބޯޑު</button>
-                   ) : null}
-
-                   <button onClick={() => supabase.auth.signOut()} style={{...styles.navBtn, color: '#d32f2f', fontWeight: 'bold'}}>ލޮގްއައުޓް</button>
-               </div>
+               <button onClick={() => routeUser(user)} style={styles.navBtn}>ޑޭޝްބޯޑު</button>
            ) : (
-               <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={{...styles.navBtn, background: '#0056b3', color: 'white', padding: '5px 15px', borderRadius: '15px'}}>ލޮގިން</button>
+               <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={styles.navBtn}>ލޮގިން</button>
            )}
         </div>
       </div>
@@ -649,13 +627,13 @@ export default function App() {
                 
                 <div className="gift-grid">
                     {allGifts.map(gift => (
-                        <div key={gift.id} className="gift-card" style={{ padding: 0, overflow: 'hidden', border: '2px solid #fff3e0' }}>
-                            <img src={gift.image_url} alt={gift.name} style={{ width: '100%', height: '140px', objectFit: 'cover' }} />
-                            <div style={{ padding: '15px' }}>
-                                <h4 style={{margin: '0 0 5px 0', fontSize: '15px'}}>{gift.name}</h4>
-                                <p className="ltr-text" style={{margin: '0 0 15px 0', fontSize: '14px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
-                                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '10px', fontSize: '13px'}}>ކޮއިން ހޯދުމަށް ލޮގިންވޭ</button>
+                        <div key={gift.id} className="gift-card">
+                            <div className="gift-image-container">
+                                <img src={gift.image_url} alt={gift.name} />
                             </div>
+                            <h4 style={{margin: '0 0 5px 0', fontSize: '14px', lineHeight: '1.3'}}>{gift.name}</h4>
+                            <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '13px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
+                            <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '12px'}}>ލޮގިންވޭ</button>
                         </div>
                     ))}
                     {allGifts.length === 0 && <p style={{textAlign: 'center', width: '100%', color: '#888'}}>އަދި ފިހާރައަށް އިނާމެއް ނުލާ...</p>}
@@ -858,8 +836,17 @@ export default function App() {
       {/* 🚀 NEW GAMIFIED STUDENT HUB (DASHBOARD) 🚀 */}
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
+            
+            {/* 🔥 WELCOME & LOGOUT STACK 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
                 <h2 style={{color: '#333', margin: 0}}>ސްޓޫޑެންޓް ހަބް</h2>
+                <div style={{textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    <div style={{fontSize: '13px', color: '#666', lineHeight: '1.2'}}>
+                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
+                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+                    </div>
+                    <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background:'#f44336', width: 'auto', padding: '6px 12px', fontSize: '12px'}}>ލޮގްއައުޓް</button>
+                </div>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1026,30 +1013,25 @@ export default function App() {
                         <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#f57f17', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0, color: '#f57f17'}}>އިނާމު ފިހާރަ 🎁</h3>
                     </div>
-                    
-                    <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
-                        <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
-                    </div>
 
                     <div className="gift-grid">
                         {allGifts.map(gift => {
                             const canAfford = (profileData.total_coins || 0) >= gift.cost;
                             return (
-                                <div key={gift.id} className="gift-card" style={{ padding: 0, overflow: 'hidden', border: '2px solid #fff3e0' }}>
-                                    <img src={gift.image_url} alt={gift.name} style={{ width: '100%', height: '140px', objectFit: 'cover' }} />
-                                    <div style={{ padding: '15px' }}>
-                                        <h4 style={{margin: '0 0 5px 0', fontSize: '15px'}}>{gift.name}</h4>
-                                        <p className="ltr-text" style={{margin: '0 0 15px 0', fontSize: '14px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
-                                        
-                                        <button 
-                                            onClick={() => handlePurchase(gift)} 
-                                            disabled={!canAfford || loading} 
-                                            style={{...styles.btn, background: canAfford ? '#4caf50' : '#ddd', color: canAfford ? 'white' : '#999', padding: '8px', fontSize: '12px', cursor: canAfford ? 'pointer' : 'not-allowed'}}
-                                        >
-                                            {loading ? '...' : canAfford ? 'ބަދަލުކުރޭ' : 'ކޮއިން މަދު'}
-                                        </button>
+                                <div key={gift.id} className="gift-card">
+                                    <div className="gift-image-container">
+                                        <img src={gift.image_url} alt={gift.name} />
                                     </div>
+                                    <h4 style={{margin: '0 0 5px 0', fontSize: '13px', lineHeight: '1.3'}}>{gift.name}</h4>
+                                    <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
+                                    
+                                    <button 
+                                        onClick={() => handlePurchase(gift)} 
+                                        disabled={!canAfford || loading} 
+                                        style={{...styles.btn, background: canAfford ? '#4caf50' : '#ddd', color: canAfford ? 'white' : '#999', padding: '6px', fontSize: '12px', cursor: canAfford ? 'pointer' : 'not-allowed'}}
+                                    >
+                                        {loading ? '...' : canAfford ? 'ބަދަލުކުރޭ' : 'ކޮއިން މަދު'}
+                                    </button>
                                 </div>
                             );
                         })}
@@ -1403,7 +1385,6 @@ function AdminPanel({
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
     const deleteStudent = async (id) => { if(window.confirm("މި ދަރިވަރު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_students').delete().eq('id', id); loadAdminData(); } };
     
-    // BULK UPLOAD MATH QUESTIONS
     const handleBulkMathUpload = async () => {
         try {
             const parsedData = JSON.parse(bulkJSON);
@@ -1430,7 +1411,6 @@ function AdminPanel({
         const eligibleCandidates = attempts.filter(attempt => !recentWinnerPhones.includes(attempt.phone));
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
-          // 🔥 STATUS SET TO PENDING FOR SHOP ADMIN 🔥
           await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
           showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
         } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
@@ -1491,7 +1471,6 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* NEW MATH ADMIN TAB */}
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <h3 style={{color: '#1976d2'}}>ހިސާބު ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
@@ -1506,7 +1485,7 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* NEW GIFTS ADMIN TAB */}
+            {/* GIFTS ADMIN TAB */}
             {adminTab === 'gifts' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
@@ -1562,6 +1541,9 @@ function AdminPanel({
 // --- STYLES ---
 const styles = {
   appContainer: { minHeight: '100vh', background: '#f0f4f8', direction: 'rtl', textAlign: 'right' },
+  navbar: { background: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
+  logo: { fontWeight: '900', fontSize: '24px', color: '#2e7d32', cursor: 'pointer' },
+  navBtn: { border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontFamily: '"Faruma", sans-serif' },
   container: { padding: '20px', maxWidth: '1400px', margin: '0 auto' },
   centeredGrid: { padding: '20px', maxWidth: '1000px', margin: '0 auto' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' },
