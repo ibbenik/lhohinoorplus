@@ -196,7 +196,6 @@ export default function App() {
         let totalMathScore = 0;
         let spentCoins = 0;
 
-        // 🔥 CRITICAL FIX: Query by user_id so siblings don't share orders! 🔥
         const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('user_id', userId);
         if (genAttempts) {
             totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -299,8 +298,10 @@ export default function App() {
               showToast('އެކައުންޓް ހެދިއްޖެ! ލޮގިން ކުރައްވާ.', 'success'); setTimeout(() => { setAuthMode('login'); }, 2000);
           }
       } else if (authMode === 'login') {
+          // 🔥 SAFEGUARD: Trim whitespace & lowercase to prevent mobile keyboard caps issues
           let loginEmail = d.login_identifier.trim();
           if (!loginEmail.includes('@')) loginEmail = `${loginEmail.toUpperCase()}@lhohi.mv`;
+          else loginEmail = loginEmail.toLowerCase(); 
           
           const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: d.password });
           if (error) { 
@@ -353,7 +354,7 @@ export default function App() {
       if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
           setLoading(true);
           const { error } = await supabase.from('lhohinoor_purchases').insert([{
-              user_id: user.id, // 🔥 CRITICAL FIX 🔥
+              user_id: user.id,
               phone: profileData.parent_phone,
               student_name: profileData.student_name,
               item_id: gift.id,
@@ -384,7 +385,6 @@ export default function App() {
     setQuizLoading(true);
     const activeDate = getActiveQuizDate(); 
     
-    // 🔥 CRITICAL FIX: Check by user_id so siblings can play independently 🔥
     const { data: existing } = await supabase.from('lhohinoor_quiz_attempts').select('id').eq('user_id', user.id).eq('created_at', activeDate);
     
     if (existing && existing.length > 0) { showToast("މިއަދުގެ ކުއިޒްގައި ވަނީ ބައިވެރިވެފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); navigateTo('dashboard', 'progress'); setQuizLoading(false); return; }
@@ -434,7 +434,6 @@ export default function App() {
       setQuizLoading(true);
       const activeDate = getActiveQuizDate();
 
-      // 🔥 CRITICAL FIX: Check by user_id so siblings can play independently 🔥
       const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('user_id', user.id).eq('created_at', activeDate);
       if (attErr) { showToast("Database error. Have you created the tables?", "error"); setQuizLoading(false); return; }
       
@@ -861,7 +860,13 @@ export default function App() {
                   <BrandLogo />
 
                   <h2 style={{color: '#d32f2f', textAlign: 'center', marginTop: 0}}>މަރުޙަބާ! ޕްރޮފައިލް ފުރިހަމަކުރައްވާ</h2>
-                  <p style={{fontSize: '13px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ސިސްޓަމް ބޭނުންކުރުމަށް ތިރީގައިވާ މަޢުލޫމާތު ފުރިހަމަ ކުރަންޖެހޭނެއެވެ.</p>
+                  
+                  {/* 🔥 NEW ACCOUNT WARNING & LOGOUT FIX 🔥 */}
+                  <div style={{background: '#fff3cd', padding: '12px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #ffeeba', textAlign: 'center', color: '#856404', lineHeight: '1.4'}}>
+                      <span style={{fontSize: '12px'}}>ތިޔަ ލޮގިންވެފައިވަނީ:</span><br/>
+                      <b className="ltr-text" style={{fontSize: '14px', color: '#0056b3'}}>{user?.email}</b><br/>
+                      <span style={{fontSize: '11px'}}>(ކުރިން ބޭނުންކުރެއްވި އައި.ޑީ ނުވަތަ އީމެއިލް ނޫންނަމަ، ތިރީގައިވާ ލޮގްއައުޓް އަށް ފިތާލައްވާ)</span>
+                  </div>
                   
                   <form onSubmit={handleUpdateProfile} style={styles.form}>
                         <label style={{textAlign: 'left', fontSize: '12px', color: '#666', marginBottom: '-8px'}}>ފުރިހަމަ ނަން (Full Name)</label>
@@ -886,6 +891,9 @@ export default function App() {
                         </select>
 
                         <button type="submit" disabled={loading} style={{...styles.btn, background:'green', marginTop: '10px'}}>{loading ? 'ސޭވްކުރަނީ...' : 'ސޭވްކޮށްފައި ކުރިއަށްދޭ'}</button>
+                        
+                        {/* 🔥 ESCAPE HATCH (LOGOUT) 🔥 */}
+                        <button type="button" onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336'}}>އެހެން އެކައުންޓަކުން ވަނުމަށް (ލޮގްއައުޓް)</button>
                   </form>
               </div>
           </div>
@@ -895,7 +903,6 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 WELCOME & LOGOUT STACK 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
                 <h2 style={{color: '#333', margin: 0}}>ސްޓޫޑެންޓް ހަބް</h2>
                 <div style={{textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px'}}>
