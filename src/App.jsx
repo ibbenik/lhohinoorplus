@@ -6,7 +6,7 @@ import './App.css';
 const BADGE_CONFIG = [
     { id: 'starter', icon: <svg width="36" height="36" fill="none" stroke="#fbc02d" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>, name: 'ފެށުން', cost: 0 },
     { id: 'quiz_master', icon: <svg width="36" height="36" fill="none" stroke="#9c27b0" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>, name: 'ކުއިޒް މާސްޓަރ', cost: 100 },
-    { id: 'math_genius', icon: <svg width="36" height="36" fill="none" stroke="#1976d2" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>, name: 'ހިސާބު', cost: 500 },
+    { id: 'math_genius', icon: <svg width="36" height="36" fill="none" stroke="#1976d2" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>, name: 'މިކްސް ޗެލެންޖް', cost: 500 },
     { id: 'quran_star', icon: <svg width="36" height="36" fill="none" stroke="#388e3c" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>, name: 'ޤާރީ', cost: 1000 },
     { id: 'champion', icon: <svg width="36" height="36" fill="none" stroke="#d32f2f" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>, name: 'ޗެމްޕިއަން', cost: 5000 }
 ];
@@ -27,6 +27,15 @@ export default function App() {
       window.history.pushState({ view: newView, dashView: newDashView }, '', '');
       setView(newView);
       setDashView(newDashView);
+  };
+
+  // 🔥 INTELLIGENT GIFT SHOP ROUTING 🔥
+  const handleGiftShopNavigation = () => {
+      if (user && profileData && !profileData.isMissing) {
+          navigateTo('dashboard', 'gift_shop');
+      } else {
+          navigateTo('public_shop');
+      }
   };
 
   useEffect(() => {
@@ -390,9 +399,9 @@ export default function App() {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
     
+    // 🔥 LIMIT CHANGED TO 2 ATTEMPTS PER DAY 🔥
     if (profileData.quiz_attempts_today >= 2) { 
         showToast("މިއަދުގެ 2 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
-        navigateTo('dashboard', 'programs'); 
         setQuizLoading(false); 
         return; 
     }
@@ -444,6 +453,7 @@ export default function App() {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
       
+      // 🔥 MIX CHALLENGE 5 ATTEMPTS PER DAY 🔥
       if (profileData.math_attempts_today >= 5) { 
           showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return; 
@@ -591,7 +601,7 @@ export default function App() {
         .gift-card { background: white; border: 2px solid #fff3e0; border-radius: 15px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
         .gift-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(255,152,0,0.15); border-color: #ffb74d; }
         .gift-image-container { width: 100%; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; margin-bottom: 12px; background: #fafafa; display: flex; align-items: center; justify-content: center; }
-        .gift-image-container img { width: 100%; height: 100%; object-fit: cover; }
+        .gift-image-container img { width: 100%; height: 100%; object-fit: contain; padding: 10px; box-sizing: border-box; }
 
         .official-slip-table td { padding: 10px 0; border-bottom: 1px dashed #eee; }
         .official-slip-table tr:last-child td { border-bottom: none; }
@@ -645,7 +655,7 @@ export default function App() {
                   <h2 style={{color: '#ff9800', margin: '0 0 10px 0'}}>🎉 އައު އިނާމެއް!</h2>
                   <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމު ގަނެވޭނެ!</p>
                   <div style={{width: '120px', height: '120px', margin: '20px auto', borderRadius: '15px', overflow: 'hidden', border: '3px solid #ff9800', boxShadow: '0 10px 20px rgba(255,152,0,0.3)'}}>
-                      <img src={celebrationGift.image_url} alt={celebrationGift.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                      <img src={celebrationGift.image_url} alt={celebrationGift.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'contain', padding: '10px'}} />
                   </div>
                   <h3 style={{color: '#333', margin: '0 0 5px 0'}}>{celebrationGift.name}</h3>
                   <button onClick={() => { setCelebrationGift(null); navigateTo('dashboard', 'gift_shop'); }} style={{...styles.btn, background: '#ff9800', color: 'white', marginTop: '20px'}}>ފިހާރައަށް ދޭ</button>
@@ -660,11 +670,11 @@ export default function App() {
         </div>
         <div className="nav-links">
            <span className="nav-item" onClick={() => navigateTo('home')}>ހޯމް</span>
-           <span className="nav-item" onClick={() => navigateTo('public_shop')} style={{color: '#e65100'}}>އިނާމު</span>
+           <span className="nav-item" onClick={handleGiftShopNavigation} style={{color: '#e65100'}}>އިނާމު</span>
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
            {user ? (
-               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+               <>
                    {user.email === 'admin@lhohi.mv' ? (
                        <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
                    ) : user.email === 'shop@lhohi.mv' ? (
@@ -672,8 +682,7 @@ export default function App() {
                    ) : !profileData?.isMissing ? (
                        <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
                    ) : null}
-                   <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger">ލޮގްއައުޓް</button>
-               </div>
+               </>
            ) : (
                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
@@ -909,17 +918,15 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            <h2 style={{color: '#333', margin: '0 0 10px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-            
-            <div style={{background: 'white', padding: '15px', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div>
-                    <span style={{fontSize: '13px', color: '#666'}}>މަރުޙަބާ,</span><br/>
-                    <b style={{fontSize: '18px', color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b>
+                    <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
+                    <div style={{fontSize: '13px', color: '#666', lineHeight: '1.4'}}>
+                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
+                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+                    </div>
                 </div>
-                <div style={{textAlign: 'left'}}>
-                    <span style={{fontSize: '12px', color: '#666'}}>ކޮއިން:</span><br/>
-                    <span className="ltr-text" style={{fontSize: '20px', color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
-                </div>
+                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger" style={{padding: '8px 20px'}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1040,7 +1047,7 @@ export default function App() {
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right'}}>
                         <h4 style={{margin: '0 0 5px 0', color: '#d32f2f'}}>💯 ސްކޯ ބޯޑު</h4>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ކުއިޒް ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.quiz_total_score || 0) / 5}</span></p>
-                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ހިސާބު ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.math_total_score || 0) / 5}</span></p>
+                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>މިކްސް ކުއިޒް ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.math_total_score || 0) / 5}</span></p>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{profileData.marks || 'ނުލިބޭ'}</span></p>
                     </div>
 
@@ -1069,7 +1076,7 @@ export default function App() {
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#e3f2fd'}}>
-                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ ހިސާބު ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
+                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ މިކްސް ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
                         {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
                             <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
@@ -1146,8 +1153,8 @@ export default function App() {
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
-                        <h4 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
-                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>(5 ފަހަރު ކުޅެވޭނެ. ބާކީ: <span className="ltr-text" style={{width:'auto'}}>{5 - (profileData.math_attempts_today || 0)}</span>)</p>
+                        <h4 style={{color: '#1976d2'}}>🧮 މިކްސް ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>މަޢުލޫމާތު މުއްސަނދިކުރުމަށް އެކި ރޮނގުތަކުން ސުވާލު. 5 ސުވާލު، ދުވާލަކު 5 ފުރުޞަތު.</p>
                         <button onClick={startMathQuiz} style={{...styles.btn, background: '#1976d2', color: 'white', padding: '8px', fontSize: '14px'}}>ޗެލެންޖް ފަށާ!</button>
                     </div>
 
@@ -1203,7 +1210,7 @@ export default function App() {
                 <p>ކޮލިފައިވުމަށް %80 ހޯއްދަވަންޖެހޭނެ.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={styles.btn} onClick={startQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ފަށަމާ'}</button>
-                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
               </div>
             )}
 
@@ -1263,26 +1270,26 @@ export default function App() {
             {/* 🔥 RESTORED MATH INTRO SCREEN 🔥 */}
             {mathState === 'intro' && (
               <div style={{textAlign:'right'}}>
-                <h2 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h2>
+                <h2 style={{color: '#1976d2'}}>🧮 މިކްސް ޗެލެންޖް</h2>
                 <p>5 ސުވާލު.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ޗެލެންޖް ފަށާ!'}</button>
-                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
               </div>
             )}
 
             {mathState === 'playing' && mathQuestions[mathCurrentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #e3f2fd', paddingBottom: '10px', marginBottom: '15px'}}>
-                    <span style={{fontWeight: 'bold', color: '#1976d2'}}>ހިސާބު ސުވާލު <span className="ltr-text" style={{width:'auto'}}>{mathCurrentQ+1} / {mathQuestions.length}</span></span>
+                    <span style={{fontWeight: 'bold', color: '#1976d2'}}>ސުވާލު <span className="ltr-text" style={{width:'auto'}}>{mathCurrentQ+1} / {mathQuestions.length}</span></span>
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
                 
-                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'ltr', fontSize:'24px', color:'#333', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
+                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'rtl', fontSize:'24px', color:'#333', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
-                    <button key={i} style={{...styles.optionBtn, direction: 'ltr', textAlign: 'center', fontSize: '18px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
+                    <button key={i} style={{...styles.optionBtn, direction: 'rtl', textAlign: 'center', fontSize: '18px', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
                   ))}
                 </div>
               </>
@@ -1297,8 +1304,8 @@ export default function App() {
                         <h4 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>ރަނގަޅު ޖަވާބުތައް ދަސްކޮށްލަމާ:</h4>
                         {mathQuestions.map((q, i) => (
                             <div key={i} style={{background: 'white', padding: '10px', marginBottom: '8px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'}}>
-                                <p style={{margin: '0 0 5px 0', fontSize: '16px', fontWeight: 'bold', fontFamily: 'Arial, sans-serif', direction: 'ltr', textAlign: 'left'}}>{q.question_text}</p>
-                                <p style={{margin: 0, color: 'green', fontSize: '15px', fontFamily: 'Arial, sans-serif', direction: 'ltr', textAlign: 'left'}}>✓ {q.correct_option}</p>
+                                <p style={{margin: '0 0 5px 0', fontSize: '16px', fontWeight: 'bold', fontFamily: '"Faruma", Arial, sans-serif', direction: 'rtl', textAlign: 'right'}}>{q.question_text}</p>
+                                <p style={{margin: 0, color: 'green', fontSize: '15px', fontFamily: '"Faruma", Arial, sans-serif', direction: 'rtl', textAlign: 'right'}}>✓ {q.correct_option}</p>
                             </div>
                         ))}
                         <p style={{fontSize: '13px', color: '#666', marginTop: '15px', fontWeight: 'bold'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
@@ -1319,7 +1326,7 @@ export default function App() {
                 <h2 style={{marginTop:0}}>ސޭވްކުރެވިއްޖެ!</h2>
 
                 <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
-                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ހިސާބު ޓޮޕް 10 ({getActiveQuizDate()})</h4>
+                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ މިކްސް ޗެލެންޖް ޓޮޕް 10 ({getActiveQuizDate()})</h4>
                     {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
                         <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
@@ -1512,7 +1519,7 @@ function AdminPanel({
             if (!Array.isArray(parsedData)) return showToast("ޖޭސަން (JSON) ފޯމެޓް ނުބައި!", "error");
             const { error } = await supabase.from('lhohinoor_math_questions').insert(parsedData);
             if (error) throw error;
-            showToast(`${parsedData.length} ހިސާބު ސުވާލު ސޭވްވެއްޖެ!`, "success");
+            showToast(`${parsedData.length} މިކްސް ސުވާލު ސޭވްވެއްޖެ!`, "success");
             setBulkJSON('');
         } catch (err) {
             showToast("މައްސަލައެއް: " + err.message, "error");
@@ -1548,7 +1555,7 @@ function AdminPanel({
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
                 <button style={{...styles.tab, borderBottom: adminTab==='students'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('students')}>ދަރިވަރުން</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='quiz'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('quiz')}>ސުވާލު މުބާރާތް</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ހިސާބު ސުވާލުތައް</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>މިކްސް ކުއިޒް ސުވާލު</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none', color: adminTab==='gifts'?'#ff9800':''}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
             </div>
@@ -1594,12 +1601,12 @@ function AdminPanel({
 
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <h3 style={{color: '#1976d2'}}>ހިސާބު ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
+                    <h3 style={{color: '#1976d2'}}>މިކްސް ކުއިޒް ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
                     <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި ސުވާލުތައް ޕޭސްޓް ކުރައްވާ.</p>
                     <textarea 
                         value={bulkJSON} 
                         onChange={(e) => setBulkJSON(e.target.value)} 
-                        placeholder='[ {"grade": "Grade 3", "question_text": "10 + 5 = ?", "option_1": "10", "option_2": "15", "option_3": "20", "correct_option": "15"} ]'
+                        placeholder='[ {"grade": "Grade 3", "question_text": "ދިވެހިރާއްޖޭގެ ވެރިރަށަކީ ކޮބާ?", "option_1": "މާލެ", "option_2": "އައްޑޫ", "option_3": "ކުޅުދުއްފުށި", "correct_option": "މާލެ"} ]'
                         style={{...styles.inputLtr, height: '200px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}}
                     />
                     <button onClick={handleBulkMathUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>އަޕްލޯޑް ކުރޭ</button>
