@@ -385,10 +385,11 @@ export default function App() {
       }
   };
 
+  // 🔥 ADDED CONTACT NAME FIELD TO PAYLOAD 🔥
   const handlePartnerForm = async (e) => {
       e.preventDefault(); setLoading(true);
       const d = Object.fromEntries(new FormData(e.target));
-      const safePayload = { business_name: d.business_name, phone: d.phone };
+      const safePayload = { business_name: d.business_name, contact_name: d.contact_name, phone: d.phone };
       const { error } = await supabase.from('lhohinoor_partner_requests').insert([safePayload]);
       if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else { showToast('ފޯމު ފޮނުވިއްޖެ! ވަރަށް އަވަހަށް ގުޅާނަން.', 'success'); navigateTo('home'); }
       setLoading(false);
@@ -516,7 +517,6 @@ export default function App() {
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
   const resetMath = () => { setMathState('intro'); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setMathQuestions([]); };
 
-  // FIX: Force this to strictly be a boolean so React never accidentally renders "0"
   const isEnrolledInQuran = !!(profileData && (
       (profileData.level && String(profileData.level).trim() !== '' && profileData.level !== 'N/A') || 
       (profileData.category && String(profileData.category).trim() !== '' && profileData.category !== 'N/A') || 
@@ -611,7 +611,7 @@ export default function App() {
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
 
-        /* 🔥 FIX: COMPACT PROFESSIONAL NAVBAR FOR MOBILE 🔥 */
+        /* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */
         .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 12px 3%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
         .nav-links { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
         .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; padding: 6px 8px; border-radius: 8px; user-select: none; white-space: nowrap; }
@@ -723,6 +723,7 @@ export default function App() {
                 <p style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>ޅޮހިނޫރު ޕްރޮގްރާމްތަކަށް އެހީތެރިވުމަށް އެދޭނަމަ މި ފޯމު ފުރުއްވާ.</p>
                 <form onSubmit={handlePartnerForm} style={styles.form}>
                     <input name="business_name" placeholder="ނަން / ކުންފުނި" style={styles.input} required />
+                    <input name="contact_name" placeholder="ގުޅޭނެ ފަރާތް" style={styles.input} required />
                     <input name="phone" placeholder="ގުޅޭނެ ނަންބަރު" type="tel" maxLength="7" onChange={handlePhoneInput} style={styles.inputLtr} required />
                     <button type="submit" disabled={loading} style={styles.btn}>{loading ? 'ފޮނުވަނީ...' : 'ރިކުއެސްޓް ފޮނުވާ'}</button>
                     <button type="button" onClick={() => navigateTo('home')} style={styles.btnSecondary}>ފަހަތަށް</button>
@@ -940,7 +941,6 @@ export default function App() {
                         ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger" style={{marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -986,7 +986,6 @@ export default function App() {
                         <div><p className="dash-menu-title">މަގޭ ޕްރޮފައިލް</p><p className="dash-menu-sub">މަޢުލޫމާތު ބަދަލުކުރުމަށް</p></div>
                     </div>
                     
-                    {/* LEADERBOARDS FETCH ON PROGRESS CLICK */}
                     <div className="dash-menu-btn" onClick={() => { fetchLeaderboards(); navigateTo('dashboard', 'progress'); }}>
                         <div className="dash-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -1676,10 +1675,11 @@ function AdminPanel({
                     
                     <h3 style={{marginTop: '30px'}}>ރިކުއެސްޓްތައް</h3>
                     <table style={{...styles.table, minWidth: '500px'}}>
-                        <thead><tr><th>ވިޔަފާރި</th><th>ފޯނު</th></tr></thead>
+                        <thead><tr><th>ވިޔަފާރި</th><th>ފޯނު</th><th>ގުޅޭނެ ފަރާތް</th></tr></thead>
                         <tbody>{partnerRequestsList.map(r => (<tr key={r.id}>
                             <td>{r.business_name}</td>
                             <td style={{direction: 'ltr', textAlign: 'right'}}>{r.phone}</td>
+                            <td>{r.contact_name}</td>
                         </tr>))}</tbody>
                     </table>
                 </div>
