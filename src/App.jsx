@@ -196,19 +196,26 @@ export default function App() {
         let totalMathScore = 0;
         let spentCoins = 0;
 
-        const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('user_id', userId);
+        const activeDate = getActiveQuizDate();
+
+        // 1. Fetch ALL Attempts to calculate total coins and scores
+        const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score, created_at').eq('user_id', userId);
         if (genAttempts) {
             totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
             const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
             calculatedCoins += (passedGeneral * 5);
         }
 
-        const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score').eq('user_id', userId);
+        const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score, created_at').eq('user_id', userId);
         if (mathAttempts) {
             totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
             const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
             calculatedCoins += (passedMath * 5);
         }
+
+        // 2. Count TODAY's attempts for the 5-limit rule
+        const todayGenCount = genAttempts ? genAttempts.filter(a => a.created_at === activeDate).length : 0;
+        const todayMathCount = mathAttempts ? mathAttempts.filter(a => a.created_at === activeDate).length : 0;
 
         const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
         if (purchaseData) {
@@ -232,6 +239,8 @@ export default function App() {
             total_coins: currentBalance, 
             quiz_total_score: totalGeneralScore,
             math_total_score: totalMathScore,
+            quiz_attempts_today: todayGenCount,
+            math_attempts_today: todayMathCount,
             unlocked_badges: unlockedBadgesCount, 
             total_certificates: 0 
         };
@@ -298,7 +307,6 @@ export default function App() {
               showToast('އެކައުންޓް ހެދިއްޖެ! ލޮގިން ކުރައްވާ.', 'success'); setTimeout(() => { setAuthMode('login'); }, 2000);
           }
       } else if (authMode === 'login') {
-          // 🔥 SAFEGUARD: Trim whitespace & lowercase to prevent mobile keyboard caps issues
           let loginEmail = d.login_identifier.trim();
           if (!loginEmail.includes('@')) loginEmail = `${loginEmail.toUpperCase()}@lhohi.mv`;
           else loginEmail = loginEmail.toLowerCase(); 
@@ -364,7 +372,7 @@ export default function App() {
           }]);
 
           if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
-              showToast('🎉 އިނާމު ގަނެވިއްޖެ! ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ.', 'success');
+              showToast('🎉 އިނާމު ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
               await fetchProfileDetails(user.id); 
           }
           setLoading(false);
@@ -383,15 +391,22 @@ export default function App() {
   const startQuiz = async () => {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
-    const activeDate = getActiveQuizDate(); 
     
-    const { data: existing } = await supabase.from('lhohinoor_quiz_attempts').select('id').eq('user_id', user.id).eq('created_at', activeDate);
-    
-    if (existing && existing.length > 0) { showToast("މިއަދުގެ ކުއިޒްގައި ވަނީ ބައިވެރިވެފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); navigateTo('dashboard', 'progress'); setQuizLoading(false); return; }
+    // 🔥 LIMIT INCREASED TO 5 ATTEMPTS PER DAY 🔥
+    if (profileData.quiz_attempts_today >= 5) { 
+        showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
+        navigateTo('dashboard', 'programs'); 
+        setQuizLoading(false); 
+        return; 
+    }
 
+    const activeDate = getActiveQuizDate(); 
     const { data, error } = await supabase.from('lhohinoor_questions').select('*').eq('quiz_date', activeDate);
+    
     if (error) { showToast("System Error.", "error"); setQuizLoading(false); return; }
+    
     if (data && data.length > 0) {
+      // Shuffles the big pool and picks 5 random distinct questions every time they play
       const randomFive = data.sort(() => 0.5 - Math.random()).slice(0, 5);
       setQuestions(randomFive); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuizState('playing'); navigateTo('quiz');
     } else { 
@@ -430,16 +445,13 @@ export default function App() {
   };
 
   const startMathQuiz = async () => {
-      if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
+      if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
-      const activeDate = getActiveQuizDate();
-
-      const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('user_id', user.id).eq('created_at', activeDate);
-      if (attErr) { showToast("Database error. Have you created the tables?", "error"); setQuizLoading(false); return; }
       
-      if (attempts && attempts.length >= 1) {
-          showToast("މިއަދުގެ ފުރުޞަތު ވަނީ ބޭނުންކޮށްފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
-          setQuizLoading(false); return;
+      // 🔥 LIMIT INCREASED TO 5 ATTEMPTS PER DAY 🔥
+      if (profileData.math_attempts_today >= 5) { 
+          showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
+          setQuizLoading(false); return; 
       }
 
       const { data: qData, error: qErr } = await supabase.from('lhohinoor_math_questions').select('*').eq('grade', profileData.grade);
@@ -677,10 +689,10 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', marginBottom: '10px', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ހިލޭ އިނާމުތައް ގަންނަވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ހިލޭ އިނާމުތައް ގަންނަވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> އެއްވެސް އިނާމެއް ބަދަލުކުރުމުން ފިތުރު ޢީދު ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެ!</p>
+                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
                 </div>
 
                 <div className="gift-grid">
@@ -861,7 +873,6 @@ export default function App() {
 
                   <h2 style={{color: '#d32f2f', textAlign: 'center', marginTop: 0}}>މަރުޙަބާ! ޕްރޮފައިލް ފުރިހަމަކުރައްވާ</h2>
                   
-                  {/* 🔥 NEW ACCOUNT WARNING & LOGOUT FIX 🔥 */}
                   <div style={{background: '#fff3cd', padding: '12px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #ffeeba', textAlign: 'center', color: '#856404', lineHeight: '1.4'}}>
                       <span style={{fontSize: '12px'}}>ތިޔަ ލޮގިންވެފައިވަނީ:</span><br/>
                       <b className="ltr-text" style={{fontSize: '14px', color: '#0056b3'}}>{user?.email}</b><br/>
@@ -892,7 +903,6 @@ export default function App() {
 
                         <button type="submit" disabled={loading} style={{...styles.btn, background:'green', marginTop: '10px'}}>{loading ? 'ސޭވްކުރަނީ...' : 'ސޭވްކޮށްފައި ކުރިއަށްދޭ'}</button>
                         
-                        {/* 🔥 ESCAPE HATCH (LOGOUT) 🔥 */}
                         <button type="button" onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336'}}>އެހެން އެކައުންޓަކުން ވަނުމަށް (ލޮގްއައުޓް)</button>
                   </form>
               </div>
@@ -903,6 +913,7 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
+            {/* 🔥 WELCOME & LOGOUT STACK 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
                 <h2 style={{color: '#333', margin: 0}}>ސްޓޫޑެންޓް ހަބް</h2>
                 <div style={{textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px'}}>
@@ -1085,7 +1096,7 @@ export default function App() {
                     </div>
 
                     <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> އެއްވެސް އިނާމެއް ބަދަލުކުރުމުން ފިތުރު ޢީދު ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެ!</p>
+                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
                     </div>
 
                     <div className="gift-grid">
@@ -1140,12 +1151,13 @@ export default function App() {
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4>❓ ދުވަހުގެ ކުއިޒް</h4>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>(5 ފަހަރު ކުޅެވޭނެ. ބާކީ: <span className="ltr-text" style={{width:'auto'}}>{5 - (profileData.quiz_attempts_today || 0)}</span>)</p>
                         <button onClick={startQuiz} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '14px'}}>މިއަދުގެ ކުއިޒް ކުޅުއްވާ</button>
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
-                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު. ފާސްވެއްޖެނަމަ 5 ކޮއިން!</p>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>(5 ފަހަރު ކުޅެވޭނެ. ބާކީ: <span className="ltr-text" style={{width:'auto'}}>{5 - (profileData.math_attempts_today || 0)}</span>)</p>
                         <button onClick={startMathQuiz} style={{...styles.btn, background: '#1976d2', color: 'white', padding: '8px', fontSize: '14px'}}>ޗެލެންޖް ފަށާ!</button>
                     </div>
 
@@ -1262,7 +1274,7 @@ export default function App() {
             {mathState === 'intro' && (
               <div style={{textAlign:'right'}}>
                 <h2 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h2>
-                <p>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު.</p>
+                <p>5 ސުވާލު.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ޗެލެންޖް ފަށާ!'}</button>
                 <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
@@ -1471,6 +1483,32 @@ function AdminPanel({
     };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
 
+    // 🔥 NEW FUNCTION: DRAW WINNER PER GIFT 🔥
+    const pickGiftWinner = async (gift) => {
+        const { data: purchases } = await supabase.from('lhohinoor_purchases').select('*').eq('item_id', gift.id);
+        
+        if (!purchases || purchases.length === 0) {
+            return showToast("މި އިނާމު އަދި އެއްވެސް ކުއްޖަކު ގަނެފައެއް ނުވޭ!", "warning");
+        }
+        
+        // Randomly pick a purchase (Multiple purchases = multiple chances)
+        const winner = purchases[Math.floor(Math.random() * purchases.length)];
+        
+        if(window.confirm(`🎉 ${gift.name} ގެ ނަސީބުވެރިޔަކީ:\n\nނަން: ${winner.student_name}\nފޯނު: ${winner.phone}\n\nމި ކުއްޖާ ހޯމް ޕޭޖަށް އަރުވަންވީތަ؟`)) {
+            await supabase.from('lhohinoor_daily_winners').insert([{ 
+                username: winner.student_name, 
+                phone: winner.phone, 
+                score: 'Draw', 
+                prize: `🎁 ގުރުއަތުން ލިބުނު: ${gift.name}`, 
+                won_at: getActiveQuizDate(), 
+                congrats_count: 0, 
+                status: 'Pending' 
+            }]);
+            showToast("ނަސީބުވެރިޔާ ޕަބްލިޝް ކުރެވިއްޖެ!", "success");
+            fetchLatestWinner();
+        }
+    };
+
     const savePartner = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_partners').insert([{ name: d.name, logo_url: d.logo_url }]); e.target.reset(); loadAdminData(); };
     const deletePartner = async (id) => { if(window.confirm("މި ބައިވެރިޔާ ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_partners').delete().eq('id', id); loadAdminData(); } };
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
@@ -1575,7 +1613,7 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* GIFTS ADMIN TAB */}
+            {/* GIFTS ADMIN TAB WITH INDIVIDUAL DRAW BUTTONS */}
             {adminTab === 'gifts' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
@@ -1593,7 +1631,10 @@ function AdminPanel({
                                 <td><img src={g.image_url} alt={g.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #ddd' }} /></td>
                                 <td>{g.name}</td>
                                 <td className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>{g.cost} 🪙</td>
-                                <td><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button></td>
+                                <td>
+                                    <button style={{...styles.btn, background:'purple', width:'auto', marginRight: '5px', padding: '6px 12px', fontSize: '13px'}} onClick={()=>pickGiftWinner(g)}>🏆 ގުރުއަތު ނަގާ</button>
+                                    <button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button>
+                                </td>
                             </tr>
                         ))}</tbody>
                     </table>
