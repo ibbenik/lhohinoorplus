@@ -390,7 +390,6 @@ export default function App() {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
     
-    // 🔥 LIMIT CHANGED TO 2 ATTEMPTS PER DAY 🔥
     if (profileData.quiz_attempts_today >= 2) { 
         showToast("މިއަދުގެ 2 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
         navigateTo('dashboard', 'programs'); 
@@ -445,7 +444,6 @@ export default function App() {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
       
-      // 🔥 MATH REMAINS AT 5 ATTEMPTS PER DAY 🔥
       if (profileData.math_attempts_today >= 5) { 
           showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return; 
@@ -666,7 +664,7 @@ export default function App() {
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
            {user ? (
-               <>
+               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                    {user.email === 'admin@lhohi.mv' ? (
                        <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
                    ) : user.email === 'shop@lhohi.mv' ? (
@@ -674,7 +672,8 @@ export default function App() {
                    ) : !profileData?.isMissing ? (
                        <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
                    ) : null}
-               </>
+                   <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger">ލޮގްއައުޓް</button>
+               </div>
            ) : (
                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
@@ -910,16 +909,17 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 WELCOME & LOGOUT STACK 🔥 */}
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
+            <h2 style={{color: '#333', margin: '0 0 10px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
+            
+            <div style={{background: 'white', padding: '15px', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <div>
-                    <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-                    <div style={{fontSize: '14px', color: '#666', lineHeight: '1.4'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b> | 
-                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
-                    </div>
+                    <span style={{fontSize: '13px', color: '#666'}}>މަރުޙަބާ,</span><br/>
+                    <b style={{fontSize: '18px', color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b>
                 </div>
-                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger" style={{marginTop: '5px'}}>ލޮގްއައުޓް</button>
+                <div style={{textAlign: 'left'}}>
+                    <span style={{fontSize: '12px', color: '#666'}}>ކޮއިން:</span><br/>
+                    <span className="ltr-text" style={{fontSize: '20px', color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+                </div>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1084,11 +1084,6 @@ export default function App() {
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
                         <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#f57f17', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0, color: '#f57f17'}}>އިނާމު ފިހާރަ 🎁</h3>
-                    </div>
-                    
-                    <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
-                        <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
                     <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
@@ -1392,7 +1387,8 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, sh
         <div style={styles.container}>
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                <h2 style={{color: '#ff9800', textAlign: 'right'}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
+                <h2 style={{color: '#ff9800', textAlign: 'right', margin: 0}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
+                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1545,7 +1541,8 @@ function AdminPanel({
         <div style={styles.container}>
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                <h2 className="ltr-text" style={{textAlign: 'right'}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
+                <h2 className="ltr-text" style={{textAlign: 'right', margin: 0}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
+                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
