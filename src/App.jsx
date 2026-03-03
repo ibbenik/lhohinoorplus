@@ -50,7 +50,7 @@ export default function App() {
   const animationContainerRef = useRef(null);
 
   const [celebrationBadge, setCelebrationBadge] = useState(null);
-  const [celebrationGift, setCelebrationGift] = useState(null); // 🔥 NEW GIFT UNLOCK MODAL
+  const [celebrationGift, setCelebrationGift] = useState(null); 
   const prevBadgeCountRef = useRef(0);
   const prevUnlockedGiftsRef = useRef(-1);
 
@@ -116,7 +116,6 @@ export default function App() {
     setWinnerDate(getActiveQuizDate());
   }, []);
 
-  // 🔥 TRIGGER GIFT POPUP WHEN COINS INCREASE 🔥
   useEffect(() => {
       if (profileData && allGifts.length > 0) {
           const currentCoins = profileData.total_coins || 0;
@@ -197,26 +196,25 @@ export default function App() {
         let totalMathScore = 0;
         let spentCoins = 0;
 
-        if (data.parent_phone) {
-            const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('phone', data.parent_phone);
-            if (genAttempts) {
-                totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-                const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
-                calculatedCoins += (passedGeneral * 5);
-            }
+        // 🔥 CRITICAL FIX: Query by user_id so siblings don't share orders! 🔥
+        const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score').eq('user_id', userId);
+        if (genAttempts) {
+            totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
+            const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
+            calculatedCoins += (passedGeneral * 5);
+        }
 
-            const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score').eq('phone', data.parent_phone);
-            if (mathAttempts) {
-                totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-                const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
-                calculatedCoins += (passedMath * 5);
-            }
+        const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score').eq('user_id', userId);
+        if (mathAttempts) {
+            totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
+            const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
+            calculatedCoins += (passedMath * 5);
+        }
 
-            const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('phone', data.parent_phone);
-            if (purchaseData) {
-                spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
-                setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
-            }
+        const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
+        if (purchaseData) {
+            spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
+            setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
         }
         
         if (data.level) calculatedCoins += 100;
@@ -355,6 +353,7 @@ export default function App() {
       if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
           setLoading(true);
           const { error } = await supabase.from('lhohinoor_purchases').insert([{
+              user_id: user.id, // 🔥 CRITICAL FIX 🔥
               phone: profileData.parent_phone,
               student_name: profileData.student_name,
               item_id: gift.id,
@@ -384,7 +383,9 @@ export default function App() {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
     const activeDate = getActiveQuizDate(); 
-    const { data: existing } = await supabase.from('lhohinoor_quiz_attempts').select('phone').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
+    
+    // 🔥 CRITICAL FIX: Check by user_id so siblings can play independently 🔥
+    const { data: existing } = await supabase.from('lhohinoor_quiz_attempts').select('id').eq('user_id', user.id).eq('created_at', activeDate);
     
     if (existing && existing.length > 0) { showToast("މިއަދުގެ ކުއިޒްގައި ވަނީ ބައިވެރިވެފައި! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); navigateTo('dashboard', 'progress'); setQuizLoading(false); return; }
 
@@ -419,7 +420,7 @@ export default function App() {
   const autoSubmitQuiz = async (finalScore) => {
     setQuizLoading(true);
     const activeDate = getActiveQuizDate(); 
-    const { error } = await supabase.from('lhohinoor_quiz_attempts').insert([{ username: profileData.student_name, address: profileData.parent_address || "N/A", phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
+    const { error } = await supabase.from('lhohinoor_quiz_attempts').insert([{ user_id: user.id, username: profileData.student_name, address: profileData.parent_address || "N/A", phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
     if (!error) { 
         await fetchLeaderboards();
         await fetchProfileDetails(user.id); 
@@ -429,11 +430,12 @@ export default function App() {
   };
 
   const startMathQuiz = async () => {
-      if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
+      if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
       setQuizLoading(true);
       const activeDate = getActiveQuizDate();
 
-      const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('phone', profileData.parent_phone).eq('created_at', activeDate);
+      // 🔥 CRITICAL FIX: Check by user_id so siblings can play independently 🔥
+      const { data: attempts, error: attErr } = await supabase.from('lhohinoor_math_attempts').select('id').eq('user_id', user.id).eq('created_at', activeDate);
       if (attErr) { showToast("Database error. Have you created the tables?", "error"); setQuizLoading(false); return; }
       
       if (attempts && attempts.length >= 1) {
@@ -479,7 +481,7 @@ export default function App() {
 
   const autoSubmitMath = async (finalScore) => {
       const activeDate = getActiveQuizDate();
-      await supabase.from('lhohinoor_math_attempts').insert([{ username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
+      await supabase.from('lhohinoor_math_attempts').insert([{ user_id: user.id, username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
       await fetchLeaderboards();
       await fetchProfileDetails(user.id); 
       setMathState('success');
@@ -487,7 +489,7 @@ export default function App() {
 
   const autoSubmitMathBackground = async (finalScore) => {
       const activeDate = getActiveQuizDate();
-      await supabase.from('lhohinoor_math_attempts').insert([{ username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
+      await supabase.from('lhohinoor_math_attempts').insert([{ user_id: user.id, username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
       await fetchLeaderboards();
       await fetchProfileDetails(user.id); 
   };
@@ -499,6 +501,7 @@ export default function App() {
   };
 
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
+  const resetMath = () => { setMathState('intro'); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setMathQuestions([]); };
 
   const isEnrolledInQuran = profileData && (
       (profileData.level && String(profileData.level).trim() !== '' && profileData.level !== 'N/A') || 
@@ -578,7 +581,7 @@ export default function App() {
         .badge-unlocked { filter: drop-shadow(0px 4px 6px rgba(255,215,0,0.6)); border: 1px solid #fbc02d; background: #fffde7;}
 
         /* 🔥 OPTIMIZED SQUARE GIFT CARDS FOR MOBILE 🔥 */
-        .gift-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
+        .gift-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; margin-top: 15px; }
         .gift-card { background: white; border: 2px solid #fff3e0; border-radius: 15px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
         .gift-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(255,152,0,0.15); border-color: #ffb74d; }
         .gift-image-container { width: 100%; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; margin-bottom: 12px; background: #fafafa; display: flex; align-items: center; justify-content: center; }
@@ -596,10 +599,10 @@ export default function App() {
 
         /* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */
         .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
-        .nav-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-        .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; padding: 8px 12px; border-radius: 8px; user-select: none; }
+        .nav-links { display: flex; gap: 15px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
+        .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; padding: 8px 12px; border-radius: 8px; user-select: none; white-space: nowrap; }
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
-        .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 8px 18px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 14px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); }
+        .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 8px 18px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 14px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
         .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; }
         .nav-btn-danger:hover { background: #ffcdd2; }
@@ -636,7 +639,7 @@ export default function App() {
                   <h2 style={{color: '#ff9800', margin: '0 0 10px 0'}}>🎉 އައު އިނާމެއް!</h2>
                   <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމު ގަނެވޭނެ!</p>
                   <div style={{width: '120px', height: '120px', margin: '20px auto', borderRadius: '15px', overflow: 'hidden', border: '3px solid #ff9800', boxShadow: '0 10px 20px rgba(255,152,0,0.3)'}}>
-                      <img src={celebrationGift.image_url} alt={celebrationGift.name} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                      <img src={celebrationGift.image_url} alt={celebrationGift.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
                   </div>
                   <h3 style={{color: '#333', margin: '0 0 5px 0'}}>{celebrationGift.name}</h3>
                   <button onClick={() => { setCelebrationGift(null); navigateTo('dashboard', 'gift_shop'); }} style={{...styles.btn, background: '#ff9800', color: 'white', marginTop: '20px'}}>ފިހާރައަށް ދޭ</button>
@@ -650,7 +653,7 @@ export default function App() {
             ޅޮހި<span>ނޫރު</span>
         </div>
         <div className="nav-links">
-           <span className="nav-item" onClick={() => navigateTo('home')}>ފުރަތަމަ ޞަފުޙާ</span>
+           <span className="nav-item" onClick={() => navigateTo('home')}>ހޯމް</span>
            <span className="nav-item" onClick={() => navigateTo('public_shop')} style={{color: '#e65100'}}>އިނާމު</span>
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
@@ -677,11 +680,15 @@ export default function App() {
                 <h2 style={{color: '#f57f17', textAlign: 'center', marginBottom: '10px', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
                 <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ހިލޭ އިނާމުތައް ގަންނަވާ!</p>
                 
+                <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
+                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> އެއްވެސް އިނާމެއް ބަދަލުކުރުމުން ފިތުރު ޢީދު ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެ!</p>
+                </div>
+
                 <div className="gift-grid">
                     {allGifts.map(gift => (
                         <div key={gift.id} className="gift-card">
                             <div className="gift-image-container">
-                                <img src={gift.image_url} alt={gift.name} />
+                                <img src={gift.image_url} alt={gift.name} loading="lazy" decoding="async" />
                             </div>
                             <h4 style={{margin: '0 0 5px 0', fontSize: '15px', color: '#333', lineHeight: '1.3'}}>{gift.name}</h4>
                             <p className="ltr-text" style={{margin: '0 0 12px 0', fontSize: '14px', color: '#ff9800', fontWeight: 'bold'}}>{gift.cost} 🪙</p>
@@ -723,7 +730,7 @@ export default function App() {
                   </ul>
               </div>
 
-              <button onClick={() => navigateTo('home')} style={{...styles.btnSecondary, marginTop: '10px'}}>ފުރަތަމަ ޞަފުޙާއަށް</button>
+              <button onClick={() => navigateTo('home')} style={{...styles.btnSecondary, marginTop: '10px'}}>ހޯމް އަށް</button>
           </div>
         </div>
       )}
@@ -765,7 +772,7 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg}/>
+                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 
                 <div className="marquee-wrapper">
                     <div className="marquee-content">
@@ -779,7 +786,7 @@ export default function App() {
             </div>
             
             <div style={styles.card} className="animate-card">
-                <img src="https://i.pinimg.com/736x/cd/5b/17/cd5b1758007ccefc5122105d2b8e658e.jpg" alt="Quran" style={styles.cardImg}/>
+                <img src="https://i.pinimg.com/736x/cd/5b/17/cd5b1758007ccefc5122105d2b8e658e.jpg" alt="Quran" style={styles.cardImg} loading="lazy" />
                 <h3>📖 ޤުރުއާން މުބާރާތް</h3>
                 <p>ރަޖިސްޓްރޭޝަން އަދި ނަތީޖާ</p>
                 <button style={styles.btn} onClick={() => { user && !profileData?.isMissing ? (() => {navigateTo('dashboard', 'programs');})() : (() => { navigateTo('auth'); setAuthMode('login'); })(); }}>ލޮގިން / ސްޓޫޑެންޓް ހަބް</button>
@@ -788,7 +795,7 @@ export default function App() {
           
           <div style={styles.partnerSection} className="animate-card">
               <h3 style={{color:'#2e7d32'}}> ބައިވެރިން</h3>
-              <div style={styles.sponsorGrid}>{allPartners.length > 0 ? allPartners.map(p => (<div key={p.id} style={{textAlign:'center'}}>{p.logo_url ? <img src={p.logo_url} style={styles.sponsorImg} alt={p.name}/> : <span style={{fontWeight:'bold', color:'#555'}}>{p.name}</span>}</div>)) : <p>ބައިވެރިންގެ މަޢުލޫމާތު ލޯޑުކުރަނީ...</p>}</div>
+              <div style={styles.sponsorGrid}>{allPartners.length > 0 ? allPartners.map(p => (<div key={p.id} style={{textAlign:'center'}}>{p.logo_url ? <img src={p.logo_url} style={styles.sponsorImg} alt={p.name} loading="lazy"/> : <span style={{fontWeight:'bold', color:'#555'}}>{p.name}</span>}</div>)) : <p>ބައިވެރިންގެ މަޢުލޫމާތު ލޯޑުކުރަނީ...</p>}</div>
               <p onClick={() => navigateTo('partner_form')} style={styles.simpleLink}>ބައިވެރިއަކަށް ވެލައްވާ</p>
               
               <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #eee', fontSize: '11px', color: '#888', lineHeight: '1.4' }}>
@@ -888,9 +895,16 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
+            {/* 🔥 WELCOME & LOGOUT STACK 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
                 <h2 style={{color: '#333', margin: 0}}>ސްޓޫޑެންޓް ހަބް</h2>
-                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger">ލޮގްއައުޓް</button>
+                <div style={{textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    <div style={{fontSize: '13px', color: '#666', lineHeight: '1.2'}}>
+                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
+                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+                    </div>
+                    <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger">ލޮގްއައުޓް</button>
+                </div>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1063,13 +1077,17 @@ export default function App() {
                         <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
+                    <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
+                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> އެއްވެސް އިނާމެއް ބަދަލުކުރުމުން ފިތުރު ޢީދު ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެ!</p>
+                    </div>
+
                     <div className="gift-grid">
                         {allGifts.map(gift => {
                             const canAfford = (profileData.total_coins || 0) >= gift.cost;
                             return (
                                 <div key={gift.id} className="gift-card">
                                     <div className="gift-image-container">
-                                        <img src={gift.image_url} alt={gift.name} />
+                                        <img src={gift.image_url} alt={gift.name} loading="lazy" decoding="async" />
                                     </div>
                                     <h4 style={{margin: '0 0 5px 0', fontSize: '13px', lineHeight: '1.3'}}>{gift.name}</h4>
                                     <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
@@ -1169,6 +1187,17 @@ export default function App() {
             
             <BrandLogo />
 
+            {/* 🔥 RESTORED QUIZ INTRO SCREEN 🔥 */}
+            {quizState === 'intro' && (
+              <div style={{textAlign:'right'}}>
+                <h2 style={{color: '#0056b3'}}>❓ ޅޮހިނޫރު ސުވާލު މުބާރާތް</h2>
+                <p>ކޮލިފައިވުމަށް %80 ހޯއްދަވަންޖެހޭނެ.</p>
+                <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
+                <button style={styles.btn} onClick={startQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ފަށަމާ'}</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
+              </div>
+            )}
+
             {quizState === 'playing' && questions[currentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1222,6 +1251,17 @@ export default function App() {
             
             <BrandLogo />
 
+            {/* 🔥 RESTORED MATH INTRO SCREEN 🔥 */}
+            {mathState === 'intro' && (
+              <div style={{textAlign:'right'}}>
+                <h2 style={{color: '#1976d2'}}>🧮 ހިސާބު ޗެލެންޖް</h2>
+                <p>5 ސުވާލު. ދުވާލަކު 1 ފުރުޞަތު.</p>
+                <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
+                <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ޗެލެންޖް ފަށާ!'}</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
+              </div>
+            )}
+
             {mathState === 'playing' && mathQuestions[mathCurrentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #e3f2fd', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1229,7 +1269,6 @@ export default function App() {
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
                 
-                {/* 🔥 ENGLISH (LTR) OVERRIDE FOR MATH QUESTIONS 🔥 */}
                 <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'ltr', fontSize:'24px', color:'#333', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
@@ -1244,7 +1283,6 @@ export default function App() {
               <div style={{textAlign:'center'}}>
                 <h1 className="ltr-text">{mathScore} / {mathQuestions.length}</h1>
                 
-                {/* FEEDBACK SYSTEM FOR < 50% */}
                 {mathScore < 3 ? (
                     <div style={{textAlign: 'right', direction: 'rtl', marginTop: '20px', padding: '15px', background: '#ffebee', borderRadius: '10px', borderRight: '4px solid #f44336'}}>
                         <h4 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>ރަނގަޅު ޖަވާބުތައް ދަސްކޮށްލަމާ:</h4>
@@ -1271,7 +1309,6 @@ export default function App() {
                 <h1 style={{fontSize:'50px', margin:'0 0 10px 0'}}>✅</h1>
                 <h2 style={{marginTop:0}}>ސޭވްކުރެވިއްޖެ!</h2>
 
-                {/* MATH LEADERBOARD IN SUCCESS SCREEN */}
                 <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
                     <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ހިސާބު ޓޮޕް 10 ({getActiveQuizDate()})</h4>
                     {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
@@ -1279,7 +1316,7 @@ export default function App() {
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                 </div>
 
-                <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
+                <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { resetMath(); navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
               </div>
             )}
           </div>
@@ -1420,7 +1457,6 @@ function AdminPanel({
     const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ (Correct option mismatch)", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
     
-    // NEW: Manage Gifts Functionality
     const saveGift = async (e) => { 
         e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); 
         await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); 
@@ -1518,7 +1554,6 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* NEW MATH ADMIN TAB */}
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <h3 style={{color: '#1976d2'}}>ހިސާބު ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
