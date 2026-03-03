@@ -29,7 +29,6 @@ export default function App() {
       setDashView(newDashView);
   };
 
-  // 🔥 INTELLIGENT GIFT SHOP ROUTING 🔥
   const handleGiftShopNavigation = () => {
       if (user && profileData && !profileData.isMissing) {
           navigateTo('dashboard', 'gift_shop');
@@ -399,7 +398,6 @@ export default function App() {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
     
-    // 🔥 LIMIT CHANGED TO 2 ATTEMPTS PER DAY 🔥
     if (profileData.quiz_attempts_today >= 2) { 
         showToast("މިއަދުގެ 2 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
         setQuizLoading(false); 
@@ -453,7 +451,6 @@ export default function App() {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
       
-      // 🔥 MIX CHALLENGE 5 ATTEMPTS PER DAY 🔥
       if (profileData.math_attempts_today >= 5) { 
           showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
           setQuizLoading(false); return; 
@@ -519,12 +516,13 @@ export default function App() {
   const resetQuiz = () => { setQuizState('intro'); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuestions([]); };
   const resetMath = () => { setMathState('intro'); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setMathQuestions([]); };
 
-  const isEnrolledInQuran = profileData && (
+  // FIX: Force this to strictly be a boolean so React never accidentally renders "0"
+  const isEnrolledInQuran = !!(profileData && (
       (profileData.level && String(profileData.level).trim() !== '' && profileData.level !== 'N/A') || 
       (profileData.category && String(profileData.category).trim() !== '' && profileData.category !== 'N/A') || 
       (profileData.recitation && String(profileData.recitation).trim() !== '' && profileData.recitation !== 'N/A') ||
       (profileData.marks && String(profileData.marks).trim() !== '')
-  );
+  ));
 
   return (
     <div style={styles.appContainer}>
@@ -613,12 +611,12 @@ export default function App() {
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
 
-        /* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */
-        .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
-        .nav-links { display: flex; gap: 15px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
-        .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; padding: 8px 12px; border-radius: 8px; user-select: none; white-space: nowrap; }
+        /* 🔥 FIX: COMPACT PROFESSIONAL NAVBAR FOR MOBILE 🔥 */
+        .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 12px 3%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
+        .nav-links { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
+        .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; padding: 6px 8px; border-radius: 8px; user-select: none; white-space: nowrap; }
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
-        .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 8px 18px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 14px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
+        .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
         .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; }
         .nav-btn-danger:hover { background: #ffcdd2; }
@@ -665,7 +663,7 @@ export default function App() {
 
       {/* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */}
       <div className="main-navbar">
-        <div className="brand-logo" style={{cursor: 'pointer'}} onClick={() => navigateTo('home')}>
+        <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
             ޅޮހި<span>ނޫރު</span>
         </div>
         <div className="nav-links">
@@ -717,6 +715,22 @@ export default function App() {
         </div>
       )}
 
+      {/* PARTNER FORM FIX */}
+      {view === 'partner_form' && (
+          <div style={styles.centeredContainer}>
+            <div style={styles.quranCard} className="animate-card">
+                <h2 style={{color: '#2e7d32', marginTop: 0}}>ބައިވެރިއަކަށް ވެލައްވާ</h2>
+                <p style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>ޅޮހިނޫރު ޕްރޮގްރާމްތަކަށް އެހީތެރިވުމަށް އެދޭނަމަ މި ފޯމު ފުރުއްވާ.</p>
+                <form onSubmit={handlePartnerForm} style={styles.form}>
+                    <input name="business_name" placeholder="ނަން / ކުންފުނި" style={styles.input} required />
+                    <input name="phone" placeholder="ގުޅޭނެ ނަންބަރު" type="tel" maxLength="7" onChange={handlePhoneInput} style={styles.inputLtr} required />
+                    <button type="submit" disabled={loading} style={styles.btn}>{loading ? 'ފޮނުވަނީ...' : 'ރިކުއެސްޓް ފޮނުވާ'}</button>
+                    <button type="button" onClick={() => navigateTo('home')} style={styles.btnSecondary}>ފަހަތަށް</button>
+                </form>
+            </div>
+          </div>
+      )}
+
       {view === 'info' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quizCard} className="animate-card">
@@ -755,7 +769,7 @@ export default function App() {
       {view === 'home' && (
         <div style={styles.centeredGrid}>
           
-          {dailyWinner && showWinnerCard && (
+          {dailyWinner && showWinnerCard ? (
             <div className="winner-card" ref={animationContainerRef}>
               <button className="close-btn" onClick={() => setShowWinnerCard(false)}>✕</button>
               <div className="celebration-banner">🎉 މަރުޙަބާ 🎉</div>
@@ -784,7 +798,7 @@ export default function App() {
 
               <p style={{fontSize:'12px', color:'#777', marginTop:'15px', borderTop:'1px dashed #eee', paddingTop:'10px'}}>އިނާމު ނެގުމަށް އޮފީހަށް ވަޑައިގަންނަވާ!</p>
             </div>
-          )}
+          ) : null}
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
@@ -921,12 +935,12 @@ export default function App() {
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-                    <div style={{fontSize: '13px', color: '#666', lineHeight: '1.4'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
+                    <div style={{fontSize: '14px', color: '#666', lineHeight: '1.4'}}>
+                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b> | 
                         ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger" style={{padding: '8px 20px'}}>ލޮގްއައުޓް</button>
+                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger" style={{marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -953,7 +967,7 @@ export default function App() {
                 <div className="dash-menu-grid animate-card">
                     
                     {/* 🔥 THE GOLDEN VIP QURAN SLIP BUTTON 🔥 */}
-                    {isEnrolledInQuran && (
+                    {isEnrolledInQuran ? (
                         <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
                             <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -963,7 +977,7 @@ export default function App() {
                                 <p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p>
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'profile')}>
                         <div className="dash-icon">
@@ -972,6 +986,7 @@ export default function App() {
                         <div><p className="dash-menu-title">މަގޭ ޕްރޮފައިލް</p><p className="dash-menu-sub">މަޢުލޫމާތު ބަދަލުކުރުމަށް</p></div>
                     </div>
                     
+                    {/* LEADERBOARDS FETCH ON PROGRESS CLICK */}
                     <div className="dash-menu-btn" onClick={() => { fetchLeaderboards(); navigateTo('dashboard', 'progress'); }}>
                         <div className="dash-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -1091,6 +1106,11 @@ export default function App() {
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
                         <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#f57f17', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0, color: '#f57f17'}}>އިނާމު ފިހާރަ 🎁</h3>
+                    </div>
+                    
+                    <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
+                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
+                        <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
                     <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
