@@ -11,7 +11,6 @@ const BADGE_CONFIG = [
     { id: 'champion', icon: <svg width="36" height="36" fill="none" stroke="#d32f2f" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>, name: 'ޗެމްޕިއަން', cost: 5000 }
 ];
 
-// REUSABLE PREMIUM LOGO COMPONENT
 const BrandLogo = () => (
     <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <div className="brand-logo fancy-dhivehi" style={{ borderBottom: '3px solid #fbc02d', display: 'inline-block', paddingBottom: '5px', marginBottom: 0 }}>
@@ -51,7 +50,9 @@ export default function App() {
   const animationContainerRef = useRef(null);
 
   const [celebrationBadge, setCelebrationBadge] = useState(null);
+  const [celebrationGift, setCelebrationGift] = useState(null); // 🔥 NEW GIFT UNLOCK MODAL
   const prevBadgeCountRef = useRef(0);
+  const prevUnlockedGiftsRef = useRef(-1);
 
   const [authMode, setAuthMode] = useState('login'); 
   const [loading, setLoading] = useState(false);
@@ -59,7 +60,6 @@ export default function App() {
   const [profileData, setProfileData] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   
-  // --- GENERAL QUIZ STATE ---
   const [quizState, setQuizState] = useState('intro'); 
   const [questions, setQuestions] = useState([]);
   const [currentQ, setCurrentQ] = useState(0);
@@ -69,17 +69,14 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState(null);
   const [isAnswered, setIsAnswered] = useState(false);
 
-  // --- MATH QUIZ STATE ---
   const [mathState, setMathState] = useState('intro');
   const [mathQuestions, setMathQuestions] = useState([]);
   const [mathCurrentQ, setMathCurrentQ] = useState(0);
   const [mathScore, setMathScore] = useState(0);
   const [mathLeaderboard, setMathLeaderboard] = useState([]);
 
-  // --- STUDENT ORDERS STATE ---
   const [myOrders, setMyOrders] = useState([]);
 
-  // MAIN ADMIN & APP DATA STATE
   const [allStudents, setAllStudents] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
@@ -87,7 +84,6 @@ export default function App() {
   const [allGifts, setAllGifts] = useState([]); 
   const [winnerDate, setWinnerDate] = useState('');
 
-  // SHOP ADMIN STATE
   const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
@@ -115,10 +111,28 @@ export default function App() {
     supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY') { navigateTo('auth'); setAuthMode('update_password'); showToast('އައު ޕާސްވޯޑެއް ޖައްސަވާ!', 'success'); }
         if (event === 'SIGNED_IN' && session) { setUser(session.user); routeUser(session.user); }
-        if (event === 'SIGNED_OUT') { setUser(null); setProfileData(null); navigateTo('home'); prevBadgeCountRef.current = 0; }
+        if (event === 'SIGNED_OUT') { setUser(null); setProfileData(null); navigateTo('home'); prevBadgeCountRef.current = 0; prevUnlockedGiftsRef.current = -1; }
     });
     setWinnerDate(getActiveQuizDate());
   }, []);
+
+  // 🔥 TRIGGER GIFT POPUP WHEN COINS INCREASE 🔥
+  useEffect(() => {
+      if (profileData && allGifts.length > 0) {
+          const currentCoins = profileData.total_coins || 0;
+          const unlockedGifts = allGifts.filter(g => currentCoins >= g.cost);
+          
+          if (prevUnlockedGiftsRef.current === -1) {
+              prevUnlockedGiftsRef.current = unlockedGifts.length;
+          } else if (unlockedGifts.length > prevUnlockedGiftsRef.current) {
+              const newlyUnlocked = unlockedGifts.sort((a,b) => b.cost - a.cost)[0];
+              setCelebrationGift(newlyUnlocked);
+              prevUnlockedGiftsRef.current = unlockedGifts.length;
+          } else {
+              prevUnlockedGiftsRef.current = unlockedGifts.length;
+          }
+      }
+  }, [profileData?.total_coins, allGifts]);
 
   const handlePhoneInput = (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 7); };
   const validatePhone = (phone) => /^[79]\d{6}$/.test(phone);
@@ -535,7 +549,7 @@ export default function App() {
         .rays-bg { position: absolute; width: 200%; height: 200%; top: -50%; left: -50%; background: repeating-conic-gradient(from 0deg, rgba(255, 215, 0, 0.15) 0deg 15deg, transparent 15deg 30deg); animation: spinSlow 20s linear infinite; z-index: -1; }
         .badge-showcase { background: white; padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 0 50px rgba(255, 215, 0, 0.5); animation: badgePop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; position: relative; max-width: 300px; }
 
-        .brand-logo { font-size: 42px; font-weight: 900; color: #0056b3; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; text-align: center; }
+        .brand-logo { font-size: 32px; font-weight: 900; color: #0056b3; }
         .brand-logo span { color: #fbc02d; }
 
         .animate-card { animation: fadeInUp 0.8s ease-out; }
@@ -563,10 +577,11 @@ export default function App() {
         .badge-locked { filter: grayscale(100%); opacity: 0.6; }
         .badge-unlocked { filter: drop-shadow(0px 4px 6px rgba(255,215,0,0.6)); border: 1px solid #fbc02d; background: #fffde7;}
 
-        .gift-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; margin-top: 15px; }
-        .gift-card { background: white; border: 1px solid #eee; border-radius: 12px; padding: 10px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .gift-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .gift-image-container { width: 90px; height: 90px; border-radius: 8px; overflow: hidden; margin-bottom: 10px; border: 1px solid #f0f0f0; display: flex; justify-content: center; align-items: center; background: #f9f9f9; }
+        /* 🔥 OPTIMIZED SQUARE GIFT CARDS FOR MOBILE 🔥 */
+        .gift-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
+        .gift-card { background: white; border: 2px solid #fff3e0; border-radius: 15px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
+        .gift-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(255,152,0,0.15); border-color: #ffb74d; }
+        .gift-image-container { width: 100%; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; margin-bottom: 12px; background: #fafafa; display: flex; align-items: center; justify-content: center; }
         .gift-image-container img { width: 100%; height: 100%; object-fit: cover; }
 
         .official-slip-table td { padding: 10px 0; border-bottom: 1px dashed #eee; }
@@ -578,6 +593,16 @@ export default function App() {
         .leaderboard-row:nth-child(1) { color: #d4af37; font-weight: bold; font-size: 18px; }
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
+
+        /* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */
+        .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
+        .nav-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+        .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; padding: 8px 12px; border-radius: 8px; user-select: none; }
+        .nav-item:hover { background: #f0f4f8; color: #0056b3; }
+        .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 8px 18px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 14px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); }
+        .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
+        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; }
+        .nav-btn-danger:hover { background: #ffcdd2; }
         `}
       </style>
       
@@ -603,17 +628,44 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 ORIGINAL SIMPLE NAVBAR 🔥 */}
-      <div style={styles.navbar}>
-        <div style={styles.logo} onClick={() => navigateTo('home')}>ޅޮހި<span style={{color:'#fbc02d'}}>ނޫރު</span></div>
-        <div style={{display:'flex', gap:10}}>
-           <button onClick={() => navigateTo('home')} style={styles.navBtn}>ފުރަތަމަ ޞަފުޙާ</button>
-           <button onClick={() => navigateTo('public_shop')} style={{...styles.navBtn, color: '#e65100'}}>އިނާމު</button>
-           <button onClick={() => navigateTo('info')} style={styles.navBtn}>މަޢުލޫމާތު</button>
+      {/* 🎁 NEW GIFT UNLOCK CELEBRATION MODAL 🎁 */}
+      {celebrationGift && (
+          <div className="celebration-overlay" onClick={() => setCelebrationGift(null)}>
+              <div className="rays-bg"></div>
+              <div className="badge-showcase" onClick={e => e.stopPropagation()}>
+                  <h2 style={{color: '#ff9800', margin: '0 0 10px 0'}}>🎉 އައު އިނާމެއް!</h2>
+                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމު ގަނެވޭނެ!</p>
+                  <div style={{width: '120px', height: '120px', margin: '20px auto', borderRadius: '15px', overflow: 'hidden', border: '3px solid #ff9800', boxShadow: '0 10px 20px rgba(255,152,0,0.3)'}}>
+                      <img src={celebrationGift.image_url} alt={celebrationGift.name} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                  </div>
+                  <h3 style={{color: '#333', margin: '0 0 5px 0'}}>{celebrationGift.name}</h3>
+                  <button onClick={() => { setCelebrationGift(null); navigateTo('dashboard', 'gift_shop'); }} style={{...styles.btn, background: '#ff9800', color: 'white', marginTop: '20px'}}>ފިހާރައަށް ދޭ</button>
+              </div>
+          </div>
+      )}
+
+      {/* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */}
+      <div className="main-navbar">
+        <div className="brand-logo" style={{cursor: 'pointer'}} onClick={() => navigateTo('home')}>
+            ޅޮހި<span>ނޫރު</span>
+        </div>
+        <div className="nav-links">
+           <span className="nav-item" onClick={() => navigateTo('home')}>ފުރަތަމަ ޞަފުޙާ</span>
+           <span className="nav-item" onClick={() => navigateTo('public_shop')} style={{color: '#e65100'}}>އިނާމު</span>
+           <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
+           
            {user ? (
-               <button onClick={() => routeUser(user)} style={styles.navBtn}>ޑޭޝްބޯޑު</button>
+               <>
+                   {user.email === 'admin@lhohi.mv' ? (
+                       <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
+                   ) : user.email === 'shop@lhohi.mv' ? (
+                       <button onClick={() => navigateTo('shop_admin')} className="nav-btn-primary" style={{background: '#ff9800'}}>ފިހާރަ</button>
+                   ) : !profileData?.isMissing ? (
+                       <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
+                   ) : null}
+               </>
            ) : (
-               <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={styles.navBtn}>ލޮގިން</button>
+               <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
         </div>
       </div>
@@ -631,9 +683,9 @@ export default function App() {
                             <div className="gift-image-container">
                                 <img src={gift.image_url} alt={gift.name} />
                             </div>
-                            <h4 style={{margin: '0 0 5px 0', fontSize: '14px', lineHeight: '1.3'}}>{gift.name}</h4>
-                            <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '13px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
-                            <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '12px'}}>ލޮގިންވޭ</button>
+                            <h4 style={{margin: '0 0 5px 0', fontSize: '15px', color: '#333', lineHeight: '1.3'}}>{gift.name}</h4>
+                            <p className="ltr-text" style={{margin: '0 0 12px 0', fontSize: '14px', color: '#ff9800', fontWeight: 'bold'}}>{gift.cost} 🪙</p>
+                            <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '13px'}}>ލޮގިންވޭ</button>
                         </div>
                     ))}
                     {allGifts.length === 0 && <p style={{textAlign: 'center', width: '100%', color: '#888'}}>އަދި ފިހާރައަށް އިނާމެއް ނުލާ...</p>}
@@ -699,7 +751,6 @@ export default function App() {
               
               <p style={{fontSize:'14px', margin:'10px 0', fontWeight: 'bold'}}>🎁 {dailyWinner.prize}</p>
               
-              {/* 🚀 NEW SHARE BUTTON */}
               <button 
                   onClick={handleShareWinner} 
                   style={{...styles.btn, background: 'linear-gradient(135deg, #1976d2, #0056b3)', padding: '8px 15px', borderRadius: '25px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '10px'}}
@@ -837,16 +888,9 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 WELCOME & LOGOUT STACK 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
                 <h2 style={{color: '#333', margin: 0}}>ސްޓޫޑެންޓް ހަބް</h2>
-                <div style={{textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                    <div style={{fontSize: '13px', color: '#666', lineHeight: '1.2'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
-                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
-                    </div>
-                    <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background:'#f44336', width: 'auto', padding: '6px 12px', fontSize: '12px'}}>ލޮގްއައުޓް</button>
-                </div>
+                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger">ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1012,6 +1056,11 @@ export default function App() {
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
                         <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#f57f17', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0, color: '#f57f17'}}>އިނާމު ފިހާރަ 🎁</h3>
+                    </div>
+                    
+                    <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
+                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
+                        <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
                     <div className="gift-grid">
@@ -1293,7 +1342,6 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, sh
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 style={{color: '#ff9800', textAlign: 'right'}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
-                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, width:'auto', background: '#f44336'}}>ލޮގްއައުޓް</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1421,7 +1469,6 @@ function AdminPanel({
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 className="ltr-text" style={{textAlign: 'right'}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
-                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, width:'auto', background: '#f44336'}}>ލޮގްއައުޓް</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1471,6 +1518,7 @@ function AdminPanel({
                 </div>
             )}
 
+            {/* NEW MATH ADMIN TAB */}
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <h3 style={{color: '#1976d2'}}>ހިސާބު ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
@@ -1541,9 +1589,6 @@ function AdminPanel({
 // --- STYLES ---
 const styles = {
   appContainer: { minHeight: '100vh', background: '#f0f4f8', direction: 'rtl', textAlign: 'right' },
-  navbar: { background: 'white', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
-  logo: { fontWeight: '900', fontSize: '24px', color: '#2e7d32', cursor: 'pointer' },
-  navBtn: { border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontFamily: '"Faruma", sans-serif' },
   container: { padding: '20px', maxWidth: '1400px', margin: '0 auto' },
   centeredGrid: { padding: '20px', maxWidth: '1000px', margin: '0 auto' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' },
