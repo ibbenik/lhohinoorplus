@@ -690,8 +690,8 @@ export default function App() {
       {view === 'public_shop' && (
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
-                <h2 style={{color: '#f57f17', textAlign: 'center', marginBottom: '10px', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ހިލޭ އިނާމުތައް ގަންނަވާ!</p>
+                <h2 style={{color: '#f57f17', textAlign: 'center', marginBottom: '10px', fontSize: '28px'}}>🎁 ހަދިޔާ ފިހާރަ</h2>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި އިނާމުތައް ގަނެގެން ހަދިޔާއެއް ހޯއްދަވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
                     <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
