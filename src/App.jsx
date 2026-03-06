@@ -52,7 +52,7 @@ export default function App() {
   }, []);
 
   const [dailyWinner, setDailyWinner] = useState(null);
-  const [monthlyWinners, setMonthlyWinners] = useState([]); // 🔥 NEW STATE FOR MONTHLY WINNERS
+  const [monthlyWinners, setMonthlyWinners] = useState([]); 
   const [showWinnerCard, setShowWinnerCard] = useState(true);
   const [appMessage, setAppMessage] = useState({ show: false, type: '', text: '' });
   const [hasCongratulated, setHasCongratulated] = useState(false);
@@ -84,6 +84,8 @@ export default function App() {
   const [mathScore, setMathScore] = useState(0);
   const [mathLeaderboard, setMathLeaderboard] = useState([]);
 
+  const [myOrders, setMyOrders] = useState([]);
+
   const [allStudents, setAllStudents] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
@@ -91,6 +93,7 @@ export default function App() {
   const [allGifts, setAllGifts] = useState([]); 
   const [winnerDate, setWinnerDate] = useState('');
 
+  const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
   const routeUser = async (userObj) => {
@@ -107,7 +110,7 @@ export default function App() {
 
   useEffect(() => {
     fetchLatestWinner();
-    fetchMonthlyWinners(); // Fetch the gift draw winners for the homepage
+    fetchMonthlyWinners(); 
     fetchPartners(); 
     fetchLeaderboards(); 
     fetchGifts(); 
@@ -118,10 +121,19 @@ export default function App() {
     supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY') { navigateTo('auth'); setAuthMode('update_password'); showToast('އައު ޕާސްވޯޑެއް ޖައްސަވާ!', 'success'); }
         if (event === 'SIGNED_IN' && session) { setUser(session.user); routeUser(session.user); }
-        if (event === 'SIGNED_OUT') { setUser(null); setProfileData(null); navigateTo('home'); prevBadgeCountRef.current = 0; prevUnlockedGiftsRef.current = -1; }
+        // We handle SIGNED_OUT via our custom handleLogout function now
     });
     setWinnerDate(getActiveQuizDate());
   }, []);
+
+  // 🔥 POWERFUL CUSTOM LOGOUT FUNCTION 🔥
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfileData(null);
+      navigateTo('home');
+      window.location.reload(); // Force clears browser memory so Admins log out securely
+  };
 
   useEffect(() => {
       if (profileData && allGifts.length > 0) {
@@ -187,7 +199,6 @@ export default function App() {
     }
   };
 
-  // FETCH BOTH DAILY AND MONTHLY WINNERS
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners').select('*').eq('score', 'Daily').order('won_at', { ascending: false }).limit(1).single();
     if (data) { setDailyWinner(data); setHasCongratulated(false); }
@@ -207,6 +218,7 @@ export default function App() {
         let calculatedCoins = 0;
         let totalGeneralScore = 0;
         let totalMathScore = 0;
+        let spentCoins = 0;
 
         const activeDate = getActiveQuizDate();
 
@@ -226,8 +238,16 @@ export default function App() {
 
         const todayGenCount = genAttempts ? genAttempts.filter(a => a.created_at === activeDate).length : 0;
         const todayMathCount = mathAttempts ? mathAttempts.filter(a => a.created_at === activeDate).length : 0;
+
+        const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
+        if (purchaseData) {
+            spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
+            setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
+        }
         
         if (data.level) calculatedCoins += 100;
+
+        const currentBalance = calculatedCoins - spentCoins;
 
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
         if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
@@ -238,7 +258,7 @@ export default function App() {
         const enrichedData = { 
             ...data, 
             isMissing, 
-            total_coins: calculatedCoins, 
+            total_coins: currentBalance, 
             quiz_total_score: totalGeneralScore,
             math_total_score: totalMathScore,
             quiz_attempts_today: todayGenCount,
@@ -288,6 +308,8 @@ export default function App() {
 
   const loadShopAdminData = async () => {
     setLoading(true);
+    const { data: o } = await supabase.from('lhohinoor_purchases').select('*').order('created_at', { ascending: false });
+    setShopOrders(o || []);
     const { data: w } = await supabase.from('lhohinoor_daily_winners').select('*').order('won_at', { ascending: false });
     setShopWinners(w || []);
     setLoading(false);
@@ -350,6 +372,33 @@ export default function App() {
           showToast('ޕްރޮފައިލް ސޭވް ކުރެވިއްޖެ!', 'success'); await fetchProfileDetails(user.id); setIsEditingProfile(false);
       }
       setLoading(false);
+  };
+
+  const handlePurchase = async (gift) => {
+      if (!user || !profileData) return;
+      if (profileData.total_coins < gift.cost) {
+          showToast('މި އިނާމު ގަތުމަށް ކޮއިން މަދު!', 'error');
+          return;
+      }
+      
+      if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
+          setLoading(true);
+          const { error } = await supabase.from('lhohinoor_purchases').insert([{
+              user_id: user.id,
+              phone: profileData.parent_phone,
+              student_name: profileData.student_name,
+              item_id: gift.id,
+              item_name: gift.name,
+              cost: gift.cost,
+              status: 'Pending'
+          }]);
+
+          if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
+              showToast('🎉 އިނާމު ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
+              await fetchProfileDetails(user.id); 
+          }
+          setLoading(false);
+      }
   };
 
   const handlePartnerForm = async (e) => {
@@ -577,14 +626,14 @@ export default function App() {
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
 
-        /* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */
+        /* 🔥 CLEAN PROFESSIONAL NAVBAR WITH UNIVERSAL LOGOUT 🔥 */
         .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 12px 3%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
         .nav-links { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
         .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; padding: 6px 8px; border-radius: 8px; user-select: none; white-space: nowrap; }
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
-        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
+        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; margin-left: 5px;}
         .nav-btn-danger:hover { background: #ffcdd2; }
         `}
       </style>
@@ -617,7 +666,7 @@ export default function App() {
               <div className="rays-bg"></div>
               <div className="badge-showcase" onClick={e => e.stopPropagation()}>
                   <h2 style={{color: '#ff9800', margin: '0 0 10px 0'}}>🎉 އައު އިނާމެއް!</h2>
-                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، ގުރުއަތުގައި ބައިވެރިވެވޭނެ!</p>
+                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމު ގަނެވޭނެ!</p>
                   <div style={{width: '120px', height: '120px', margin: '20px auto', borderRadius: '15px', overflow: 'hidden', border: '3px solid #ff9800', boxShadow: '0 10px 20px rgba(255,152,0,0.3)'}}>
                       <img src={celebrationGift.image_url} alt={celebrationGift.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'contain', padding: '10px'}} />
                   </div>
@@ -627,7 +676,7 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */}
+      {/* 🔥 CLEAN PROFESSIONAL NAVBAR WITH UNIVERSAL LOGOUT 🔥 */}
       <div className="main-navbar">
         <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
             ޅޮހި<span>ނޫރު</span>
@@ -638,7 +687,17 @@ export default function App() {
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
            {user ? (
-               <button onClick={() => routeUser(user)} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
+               <div style={{display: 'flex', alignItems: 'center'}}>
+                   {user.email === 'admin@lhohi.mv' ? (
+                       <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
+                   ) : user.email === 'shop@lhohi.mv' ? (
+                       <button onClick={() => navigateTo('shop_admin')} className="nav-btn-primary" style={{background: '#ff9800'}}>ފިހާރަ</button>
+                   ) : !profileData?.isMissing ? (
+                       <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
+                   ) : null}
+                   {/* UNIVERSAL SECURE LOGOUT */}
+                   <button onClick={handleLogout} className="nav-btn-danger">ލޮގްއައުޓް</button>
+               </div>
            ) : (
                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
@@ -671,6 +730,23 @@ export default function App() {
                 </div>
             </div>
         </div>
+      )}
+
+      {/* PARTNER FORM FIX */}
+      {view === 'partner_form' && (
+          <div style={styles.centeredContainer}>
+            <div style={styles.quranCard} className="animate-card">
+                <h2 style={{color: '#2e7d32', marginTop: 0}}>ބައިވެރިއަކަށް ވެލައްވާ</h2>
+                <p style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>ޅޮހިނޫރު ޕްރޮގްރާމްތަކަށް އެހީތެރިވުމަށް އެދޭނަމަ މި ފޯމު ފުރުއްވާ.</p>
+                <form onSubmit={handlePartnerForm} style={styles.form}>
+                    <input name="business_name" placeholder="ނަން / ކުންފުނި" style={styles.input} required />
+                    <input name="contact_name" placeholder="ގުޅޭނެ ފަރާތް" style={styles.input} required />
+                    <input name="phone" placeholder="ގުޅޭނެ ނަންބަރު" type="tel" maxLength="7" onChange={handlePhoneInput} style={styles.inputLtr} required />
+                    <button type="submit" disabled={loading} style={styles.btn}>{loading ? 'ފޮނުވަނީ...' : 'ރިކުއެސްޓް ފޮނުވާ'}</button>
+                    <button type="button" onClick={() => navigateTo('home')} style={styles.btnSecondary}>ފަހަތަށް</button>
+                </form>
+            </div>
+          </div>
       )}
 
       {view === 'info' && (
@@ -759,7 +835,8 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                {/* 🔥 FIX: RELIABLE SUPABASE IMAGE URL RESTORED 🔥 */}
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 
                 <div className="marquee-wrapper">
                     <div className="marquee-content">
@@ -879,7 +956,7 @@ export default function App() {
 
                         <button type="submit" disabled={loading} style={{...styles.btn, background:'green', marginTop: '10px'}}>{loading ? 'ސޭވްކުރަނީ...' : 'ސޭވްކޮށްފައި ކުރިއަށްދޭ'}</button>
                         
-                        <button type="button" onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336'}}>އެހެން އެކައުންޓަކުން ވަނުމަށް (ލޮގްއައުޓް)</button>
+                        <button type="button" onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336'}}>އެހެން އެކައުންޓަކުން ވަނުމަށް (ލޮގްއައުޓް)</button>
                   </form>
               </div>
           </div>
@@ -889,7 +966,7 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 DASHBOARD HEADER WITH LOGOUT 🔥 */}
+            {/* 🔥 DASHBOARD HEADER WITH LOGOUT CAREFULLY PLACED ON THE RIGHT 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div style={{textAlign: 'right'}}>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
@@ -898,7 +975,8 @@ export default function App() {
                         ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                <button onClick={() => supabase.auth.signOut()} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
+                {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
+                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1057,7 +1135,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: DIGITAL GIFT SHOP FOR LOGGED IN USER */}
+            {/* VIEW: DIGITAL GIFT SHOP & WALLET */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1066,7 +1144,7 @@ export default function App() {
                     </div>
                     
                     <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން:</span>
+                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
                         <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
@@ -1242,11 +1320,11 @@ export default function App() {
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
                 
-                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'rtl', fontSize:'24px', color:'#333', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
+                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'ltr', fontSize:'24px', color:'#333', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
-                    <button key={i} style={{...styles.optionBtn, direction: 'rtl', textAlign: 'center', fontSize: '18px', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
+                    <button key={i} style={{...styles.optionBtn, direction: 'ltr', textAlign: 'center', fontSize: '18px', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
                   ))}
                 </div>
               </>
@@ -1309,17 +1387,18 @@ export default function App() {
               loadAdminData={loadAdminData} 
               getActiveQuizDate={getActiveQuizDate} 
               fetchLatestWinner={fetchLatestWinner}
+              handleLogout={handleLogout}
               styles={styles}
               showToast={showToast}
           />
       )}
 
-      {/* SHOP ADMIN PORTAL */}
       {view === 'shop_admin' && (
           <ShopAdminPanel 
               shopOrders={shopOrders} 
               shopWinners={shopWinners} 
               loadShopAdminData={loadShopAdminData} 
+              handleLogout={handleLogout}
               styles={styles}
               showToast={showToast}
           />
@@ -1328,8 +1407,8 @@ export default function App() {
   );
 }
 
-// 🔥 SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
-function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, showToast }) {
+// 🔥 NEW: SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
+function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogout, styles, showToast }) {
     const [shopTab, setShopTab] = useState('orders');
 
     const deliverOrder = async (id) => {
@@ -1353,7 +1432,7 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, sh
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 style={{color: '#ff9800', textAlign: 'right', margin: 0}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
-                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް</button>
+                <button onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1423,7 +1502,7 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, sh
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
     winnerDate, setWinnerDate, loadAdminData, getActiveQuizDate, 
-    fetchLatestWinner, styles, showToast
+    fetchLatestWinner, handleLogout, styles, showToast
 }) {
     const [adminTab, setAdminTab] = useState('students');
     const [editingQ, setEditingQ] = useState(null);
@@ -1432,6 +1511,7 @@ function AdminPanel({
     const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ (Correct option mismatch)", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
     
+    // NEW: Manage Gifts Functionality
     const saveGift = async (e) => { 
         e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); 
         await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); 
@@ -1527,7 +1607,7 @@ function AdminPanel({
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 className="ltr-text" style={{textAlign: 'right', margin: 0}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
-                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
+                <button onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
