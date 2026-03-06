@@ -203,21 +203,28 @@ export default function App() {
     }
   };
 
+  // 🔥 FIX: ROBUST FETCH FOR DAILY WINNER 🔥
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners')
         .select('*')
-        .neq('score', 'Draw') 
-        .order('won_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(); 
-    if (data) { setDailyWinner(data); setHasCongratulated(false); }
+        .order('id', { ascending: false })
+        .limit(20); 
+    
+    if (data && data.length > 0) {
+        // Find the first winner that is NOT a monthly draw
+        const daily = data.find(w => w.score !== 'Draw');
+        if (daily) {
+            setDailyWinner(daily);
+            setHasCongratulated(false);
+        }
+    }
   };
 
   const fetchMonthlyWinners = async () => {
       const { data } = await supabase.from('lhohinoor_daily_winners')
           .select('*')
           .eq('score', 'Draw')
-          .order('id', { ascending: false }) // Sort by latest drawn
+          .order('id', { ascending: false })
           .limit(6);
       if (data) { setMonthlyWinners(data); }
   };
@@ -414,16 +421,7 @@ export default function App() {
       }
   };
 
-  const handlePartnerForm = async (e) => {
-      e.preventDefault(); setLoading(true);
-      const d = Object.fromEntries(new FormData(e.target));
-      const safePayload = { business_name: d.business_name, contact_name: d.contact_name, phone: d.phone };
-      const { error } = await supabase.from('lhohinoor_partner_requests').insert([safePayload]);
-      if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else { showToast('ފޯމު ފޮނުވިއްޖެ! ވަރަށް އަވަހަށް ގުޅާނަން.', 'success'); navigateTo('home'); }
-      setLoading(false);
-  };
-
-  // 🔥 LIVE DRAW EXECUTOR 🔥
+  // 🔥 LIVE DRAW EXECUTOR WITH "NO ONE ELIGIBLE" NOTIFICATION 🔥
   const executeLiveDraw = async (gift) => {
       const { data: allStudentData } = await supabase.from('lhohinoor_students').select('id, student_name, parent_phone, level');
       const { data: allQuizAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('user_id, score');
@@ -445,7 +443,11 @@ export default function App() {
       });
 
       if (eligibleStudents.length === 0) {
-          showToast(`މި އިނާމަށް ޝަރުތު ހަމަވާ ކުއްޖަކު ނެތް! (${gift.cost} ކޮއިން)`, "error");
+          setActiveDrawGift(gift);
+          setSpinName("ކޮއިން ހަމަވާ ކުއްޖަކު ނެތް! 😔");
+          setIsSpinning(false);
+          setDrawWinnerObj(null);
+          showToast(`އެއްވެސް ކުއްޖަކަށް ${gift.cost} ކޮއިން ލިބިފައެއް ނުވޭ.`, "error");
           return;
       }
 
@@ -483,8 +485,9 @@ export default function App() {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
     
+    // 🔥 LIMIT TO 2 ATTEMPTS PER DAY 🔥
     if (profileData.quiz_attempts_today >= 2) { 
-        showToast("މިއަދުގެ 2 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
+        showToast("މިއަދުގެ 2 ފުރުޞަތު ބޭނުންކޮށްފީމު! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
         setQuizLoading(false); 
         return; 
     }
@@ -703,8 +706,6 @@ export default function App() {
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
-        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
-        .nav-btn-danger:hover { background: #ffcdd2; }
 
         /* 🔥 MARQUEE FIX 🔥 */
         @keyframes scrollMarquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
@@ -781,13 +782,13 @@ export default function App() {
                   </>
               )}
 
-              {(isSpinning || drawWinnerObj) && (
+              {(isSpinning || drawWinnerObj || spinName.includes('ކޮއިން ހަމަވާ')) && (
                   <div className="spinner-box animate-card">
                       {activeDrawGift && <img src={activeDrawGift.image_url} alt="Gift" className="live-gift-img" />}
                       <h2 style={{color: '#0056b3', margin: 0}}>{activeDrawGift?.name}</h2>
-                      <p style={{color: '#666', marginTop: '5px'}}>ނަސީބުވެރިޔާ:</p>
+                      <p style={{color: '#666', marginTop: '5px'}}>{spinName.includes('ކޮއިން ހަމަވާ') ? 'ނަތީޖާ:' : 'ނަސީބުވެރިޔާ:'}</p>
                       
-                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`}>
+                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`} style={{ fontSize: spinName.includes('ކޮއިން ހަމަވާ') ? '30px' : '60px' }}>
                           {spinName}
                       </div>
 
@@ -798,6 +799,13 @@ export default function App() {
                                   <button onClick={() => { setDrawWinnerObj(null); setActiveDrawGift(null); }} style={{...styles.btn, background: '#2e7d32', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>✅ ކާމިޔާބު!</button>
                               </div>
                           </>
+                      )}
+
+                      {/* If no one eligible, show a close button */}
+                      {!isSpinning && !drawWinnerObj && spinName.includes('ކޮއިން ހަމަވާ') && (
+                          <div style={{marginTop: '30px'}}>
+                              <button onClick={() => { setActiveDrawGift(null); setSpinName("ނަސީބުވެރިޔާ ހޯދަނީ..."); }} style={{...styles.btnSecondary, background: '#666', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>ފަހަތަށް</button>
+                          </div>
                       )}
                   </div>
               )}
@@ -837,10 +845,10 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ހިލޭ އިނާމުތައް ގަންނަވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
+                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
                 </div>
 
                 <div className="gift-grid">
@@ -1094,17 +1102,16 @@ export default function App() {
         <div style={styles.centeredGrid}>
             
             {/* 🔥 DASHBOARD HEADER WITH LOGOUT CAREFULLY PLACED ON THE RIGHT 🔥 */}
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
-                <div style={{textAlign: 'right'}}>
-                    <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-                    <div style={{fontSize: '14px', color: '#666', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)'}}>
+                <div>
+                    <h2 style={{color: '#333', margin: '0 0 5px 0', fontSize: '20px'}}>ސްޓޫޑެންޓް ހަބް</h2>
+                    <div style={{fontSize: '14px', color: '#666', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
                         <span>މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b></span>
                         <span style={{color: '#ccc'}}>|</span>
                         <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
-                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
+                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', margin: 0}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1131,7 +1138,7 @@ export default function App() {
                 <div className="dash-menu-grid animate-card">
                     
                     {/* 🔥 THE GOLDEN VIP QURAN SLIP BUTTON 🔥 */}
-                    {isEnrolledInQuran ? (
+                    {isEnrolledInQuran && (
                         <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
                             <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -1141,7 +1148,7 @@ export default function App() {
                                 <p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p>
                             </div>
                         </div>
-                    ) : null}
+                    )}
 
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'profile')}>
                         <div className="dash-icon">
@@ -1312,6 +1319,7 @@ export default function App() {
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4>❓ ދުވަހުގެ ކުއިޒް</h4>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>(2 ފަހަރު ކުޅެވޭނެ. ބާކީ: <span className="ltr-text" style={{width:'auto'}}>{2 - (profileData.quiz_attempts_today || 0)}</span>)</p>
                         <button onClick={startQuiz} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '14px'}}>މިއަދުގެ ކުއިޒް ކުޅުއްވާ</button>
                     </div>
 
@@ -1521,6 +1529,7 @@ export default function App() {
           />
       )}
 
+      {/* SHOP ADMIN PORTAL */}
       {view === 'shop_admin' && (
           <ShopAdminPanel 
               shopOrders={shopOrders} 
@@ -1535,7 +1544,7 @@ export default function App() {
   );
 }
 
-// 🔥 SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
+// 🔥 NEW: SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
 function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogout, styles, showToast }) {
     const [shopTab, setShopTab] = useState('orders');
 
@@ -1646,9 +1655,7 @@ function AdminPanel({
     };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
 
-    // 🔥 NEW FUNCTION: DRAW WINNER PER GIFT (LIVE PORTAL BUTTON) 🔥
     const openLiveDraw = () => {
-        // We trigger the state in the parent by changing the view
         window.history.pushState({ view: 'live_draw', dashView: 'overview' }, '', '');
         const popStateEvent = new PopStateEvent('popstate', { state: { view: 'live_draw', dashView: 'overview' }});
         window.dispatchEvent(popStateEvent);
@@ -1705,7 +1712,6 @@ function AdminPanel({
                 <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none', color: adminTab==='gifts'?'#ff9800':''}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
                 
-                {/* 🔴 LIVE DRAW LAUNCH BUTTON 🔴 */}
                 <button style={{...styles.tab, background: '#d32f2f', color: 'white', borderRadius: '8px'}} onClick={openLiveDraw}>🔴 ލައިވް ގުރުއަތު ޕޯޓަލް</button>
             </div>
             
@@ -1779,9 +1785,7 @@ function AdminPanel({
                                 <td><img src={g.image_url} alt={g.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #ddd' }} /></td>
                                 <td>{g.name}</td>
                                 <td className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>{g.cost} 🪙</td>
-                                <td>
-                                    <button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button>
-                                </td>
+                                <td><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button></td>
                             </tr>
                         ))}</tbody>
                     </table>
