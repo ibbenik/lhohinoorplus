@@ -96,6 +96,12 @@ export default function App() {
   const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
+  // 🔥 LIVE DRAW STATE 🔥
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [spinName, setSpinName] = useState("ނަސީބުވެރިޔާ ހޯދަނީ...");
+  const [activeDrawGift, setActiveDrawGift] = useState(null);
+  const [drawWinnerObj, setDrawWinnerObj] = useState(null);
+
   const routeUser = async (userObj) => {
       if (userObj.email === 'admin@lhohi.mv') {
           navigateTo('admin');
@@ -197,28 +203,22 @@ export default function App() {
     }
   };
 
-  // 🔥 ROBUST FETCH FOR WINNERS 🔥
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners')
         .select('*')
+        .neq('score', 'Draw') 
         .order('won_at', { ascending: false })
-        .limit(10);
-    
-    if (data && data.length > 0) {
-        const daily = data.find(w => w.score !== 'Draw');
-        if (daily) {
-            setDailyWinner(daily);
-            setHasCongratulated(false);
-        }
-    }
+        .limit(1)
+        .maybeSingle(); 
+    if (data) { setDailyWinner(data); setHasCongratulated(false); }
   };
 
   const fetchMonthlyWinners = async () => {
       const { data } = await supabase.from('lhohinoor_daily_winners')
           .select('*')
           .eq('score', 'Draw')
-          .order('won_at', { ascending: false })
-          .limit(5);
+          .order('id', { ascending: false }) // Sort by latest drawn
+          .limit(6);
       if (data) { setMonthlyWinners(data); }
   };
 
@@ -423,6 +423,62 @@ export default function App() {
       setLoading(false);
   };
 
+  // 🔥 LIVE DRAW EXECUTOR 🔥
+  const executeLiveDraw = async (gift) => {
+      const { data: allStudentData } = await supabase.from('lhohinoor_students').select('id, student_name, parent_phone, level');
+      const { data: allQuizAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('user_id, score');
+      const { data: allMathAttempts } = await supabase.from('lhohinoor_math_attempts').select('user_id, score');
+      
+      let eligibleStudents = [];
+
+      allStudentData.forEach(student => {
+          let coins = 0;
+          if (student.level) coins += 100;
+          const qAttempts = allQuizAttempts.filter(a => a.user_id === student.id);
+          coins += qAttempts.filter(a => parseInt(a.score, 10) >= 4).length * 5;
+          const mAttempts = allMathAttempts.filter(a => a.user_id === student.id);
+          coins += mAttempts.filter(a => parseInt(a.score, 10) >= 3).length * 5;
+
+          if (coins >= gift.cost) {
+              eligibleStudents.push(student);
+          }
+      });
+
+      if (eligibleStudents.length === 0) {
+          showToast(`މި އިނާމަށް ޝަރުތު ހަމަވާ ކުއްޖަކު ނެތް! (${gift.cost} ކޮއިން)`, "error");
+          return;
+      }
+
+      setActiveDrawGift(gift);
+      setIsSpinning(true);
+      setDrawWinnerObj(null);
+
+      let counter = 0;
+      const spinInterval = setInterval(() => {
+          setSpinName(eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)].student_name);
+          counter++;
+          
+          if (counter > 30) { // Stops after ~3 seconds
+              clearInterval(spinInterval);
+              const finalWinner = eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)];
+              setSpinName(finalWinner.student_name);
+              setDrawWinnerObj(finalWinner);
+              setIsSpinning(false);
+              
+              // Automatically save to DB
+              supabase.from('lhohinoor_daily_winners').insert([{ 
+                  username: finalWinner.student_name, 
+                  phone: finalWinner.parent_phone, 
+                  score: 'Draw', 
+                  prize: `🎁 ގުރުއަތުން: ${gift.name}`, 
+                  won_at: getActiveQuizDate(), 
+                  congrats_count: 0, 
+                  status: 'Pending' 
+              }]).then(() => fetchMonthlyWinners());
+          }
+      }, 100);
+  };
+
   const startQuiz = async () => {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
@@ -576,6 +632,7 @@ export default function App() {
         @keyframes slideDown { 0% { transform: translate(-50%, -100%); opacity: 0; } 100% { transform: translate(-50%, 0); opacity: 1; } }
         @keyframes spinSlow { 100% { transform: rotate(360deg); } }
         @keyframes badgePop { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
+        @keyframes pulseText { 0% { transform: scale(1); } 50% { transform: scale(1.05); color: #d32f2f; } 100% { transform: scale(1); } }
         
         /* CLEAN HEART ANIMATION */
         @keyframes floatHeart { 
@@ -590,7 +647,7 @@ export default function App() {
         .app-toast.success { border-color: #4caf50; color: #2e7d32; }
         .app-toast.warning { border-color: #ff9800; color: #e65100; }
 
-        .celebration-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .celebration-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; overflow: hidden; flex-direction: column; }
         .rays-bg { position: absolute; width: 200%; height: 200%; top: -50%; left: -50%; background: repeating-conic-gradient(from 0deg, rgba(255, 215, 0, 0.15) 0deg 15deg, transparent 15deg 30deg); animation: spinSlow 20s linear infinite; z-index: -1; }
         .badge-showcase { background: white; padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 0 50px rgba(255, 215, 0, 0.5); animation: badgePop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; position: relative; max-width: 300px; }
 
@@ -646,11 +703,20 @@ export default function App() {
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
+        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
+        .nav-btn-danger:hover { background: #ffcdd2; }
 
         /* 🔥 MARQUEE FIX 🔥 */
         @keyframes scrollMarquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
+        
+        /* 🔥 LIVE DRAW STYLES 🔥 */
+        .live-draw-container { text-align: center; color: white; padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow: hidden; }
+        .spinner-box { background: white; color: #333; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 80%; max-width: 600px; z-index: 2; position: relative; }
+        .spin-name { font-size: 60px; font-weight: bold; margin: 20px 0; color: #d32f2f; }
+        .spin-name.spinning { animation: pulseText 0.2s infinite; color: #555; }
+        .live-gift-img { width: 150px; height: 150px; object-fit: contain; margin-bottom: 20px; border-bottom: 3px solid #eee; padding-bottom: 15px; }
         `}
       </style>
       
@@ -692,33 +758,89 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */}
-      <div className="main-navbar">
-        <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
-            ޅޮހި<span>ނޫރު</span>
-        </div>
-        <div className="nav-links">
-           <span className="nav-item" onClick={() => navigateTo('home')}>ހޯމް</span>
-           <span className="nav-item" onClick={handleGiftShopNavigation} style={{color: '#e65100'}}>އިނާމު</span>
-           <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
-           
-           {user ? (
-               <button onClick={() => routeUser(user)} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
-           ) : (
-               <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
-           )}
-        </div>
-      </div>
+      {/* 🔥 THE NEW LIVE DRAW PORTAL VIEW 🔥 */}
+      {view === 'live_draw' && (
+          <div className="live-draw-container">
+              <div className="rays-bg" style={{opacity: 0.3}}></div>
+              
+              {!isSpinning && !drawWinnerObj && (
+                  <>
+                      <h1 style={{fontSize: '40px', color: '#ffd700', textShadow: '2px 2px 10px rgba(0,0,0,0.5)', marginBottom: '40px'}}>🎁 މަހުގެ ބޮޑު ގުރުއަތުލުން 🎁</h1>
+                      
+                      <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1000px'}}>
+                          {allGifts.map(gift => (
+                              <div key={gift.id} style={{background: 'rgba(255,255,255,0.1)', padding: '20px', borderRadius: '15px', border: '2px solid rgba(255,215,0,0.3)', width: '200px'}}>
+                                  <img src={gift.image_url} alt={gift.name} style={{width: '100px', height: '100px', objectFit: 'contain', marginBottom: '15px', background: 'white', borderRadius: '50%', padding: '10px'}} />
+                                  <h3 style={{margin: '0 0 15px 0'}}>{gift.name}</h3>
+                                  <button onClick={() => executeLiveDraw(gift)} style={{...styles.btn, background: '#ff9800', fontSize: '16px'}}>ގުރުއަތު ނަގާ!</button>
+                              </div>
+                          ))}
+                      </div>
+                      
+                      <button onClick={() => navigateTo('admin')} style={{...styles.btnSecondary, marginTop: '50px', background: 'transparent', border: '1px solid white', width: 'auto'}}>← އެޑްމިން ޕެނަލްއަށް</button>
+                  </>
+              )}
+
+              {(isSpinning || drawWinnerObj) && (
+                  <div className="spinner-box animate-card">
+                      {activeDrawGift && <img src={activeDrawGift.image_url} alt="Gift" className="live-gift-img" />}
+                      <h2 style={{color: '#0056b3', margin: 0}}>{activeDrawGift?.name}</h2>
+                      <p style={{color: '#666', marginTop: '5px'}}>ނަސީބުވެރިޔާ:</p>
+                      
+                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`}>
+                          {spinName}
+                      </div>
+
+                      {!isSpinning && drawWinnerObj && (
+                          <>
+                              <p className="ltr-text" style={{fontSize: '20px', color: '#ff9800', fontWeight: 'bold'}}>{drawWinnerObj.parent_phone}</p>
+                              <div style={{marginTop: '30px'}}>
+                                  <button onClick={() => { setDrawWinnerObj(null); setActiveDrawGift(null); }} style={{...styles.btn, background: '#2e7d32', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>✅ ކާމިޔާބު!</button>
+                              </div>
+                          </>
+                      )}
+                  </div>
+              )}
+          </div>
+      )}
+
+      {/* 🔥 CLEAN PROFESSIONAL NAVBAR (ONLY SHOWS IF NOT IN LIVE DRAW) 🔥 */}
+      {view !== 'live_draw' && (
+          <div className="main-navbar">
+            <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
+                ޅޮހި<span>ނޫރު</span>
+            </div>
+            <div className="nav-links">
+               <span className="nav-item" onClick={() => navigateTo('home')}>ހޯމް</span>
+               <span className="nav-item" onClick={handleGiftShopNavigation} style={{color: '#e65100'}}>އިނާމު</span>
+               <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
+               
+               {user ? (
+                   <>
+                       {user.email === 'admin@lhohi.mv' ? (
+                           <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
+                       ) : user.email === 'shop@lhohi.mv' ? (
+                           <button onClick={() => navigateTo('shop_admin')} className="nav-btn-primary" style={{background: '#ff9800'}}>ފިހާރަ</button>
+                       ) : !profileData?.isMissing ? (
+                           <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
+                       ) : null}
+                   </>
+               ) : (
+                   <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
+               )}
+            </div>
+          </div>
+      )}
 
       {/* 🔥 NEW PUBLIC SHOP VIEW 🔥 */}
       {view === 'public_shop' && (
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ހިލޭ އިނާމުތައް ގަންނަވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
+                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
                 </div>
 
                 <div className="gift-grid">
@@ -971,7 +1093,7 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 DASHBOARD HEADER WITH LOGOUT MOVED TO THE RIGHT + PROPER ALIGNMENT 🔥 */}
+            {/* 🔥 DASHBOARD HEADER WITH LOGOUT CAREFULLY PLACED ON THE RIGHT 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div style={{textAlign: 'right'}}>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
@@ -981,7 +1103,8 @@ export default function App() {
                         <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                <button onClick={handleLogout} style={{...styles.btnSecondary, background: 'transparent', color: '#d32f2f', border: '1px solid #d32f2f', padding: '6px 12px', fontSize: '13px', width: 'auto'}}>ލޮގްއައުޓް</button>
+                {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
+                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1140,7 +1263,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: DIGITAL GIFT SHOP & WALLET */}
+            {/* VIEW: DIGITAL GIFT SHOP FOR LOGGED IN USER */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1398,7 +1521,6 @@ export default function App() {
           />
       )}
 
-      {/* SHOP ADMIN PORTAL */}
       {view === 'shop_admin' && (
           <ShopAdminPanel 
               shopOrders={shopOrders} 
@@ -1517,7 +1639,6 @@ function AdminPanel({
     const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ (Correct option mismatch)", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
     
-    // NEW: Manage Gifts Functionality
     const saveGift = async (e) => { 
         e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); 
         await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); 
@@ -1525,51 +1646,12 @@ function AdminPanel({
     };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
 
-    // 🔥 DRAW WINNER BASED ON ELIGIBILITY (TOTAL COINS >= COST) 🔥
-    const pickGiftWinner = async (gift) => {
-        // Fetch ALL students and their attempts to calculate their total coins
-        const { data: allStudentData } = await supabase.from('lhohinoor_students').select('id, student_name, parent_phone, level');
-        const { data: allQuizAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('user_id, score');
-        const { data: allMathAttempts } = await supabase.from('lhohinoor_math_attempts').select('user_id, score');
-        
-        let eligibleStudents = [];
-
-        allStudentData.forEach(student => {
-            let coins = 0;
-            if (student.level) coins += 100;
-            
-            const qAttempts = allQuizAttempts.filter(a => a.user_id === student.id);
-            const passedQ = qAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
-            coins += (passedQ * 5);
-
-            const mAttempts = allMathAttempts.filter(a => a.user_id === student.id);
-            const passedM = mAttempts.filter(a => parseInt(a.score, 10) >= 3).length;
-            coins += (passedM * 5);
-
-            if (coins >= gift.cost) {
-                eligibleStudents.push(student);
-            }
-        });
-
-        if (eligibleStudents.length === 0) {
-            return showToast(`މި އިނާމަށް ޝަރުތު ހަމަވާ އެއްވެސް ކުއްޖަކު ނެތް! (${gift.cost} ކޮއިން ބޭނުންވޭ)`, "warning");
-        }
-        
-        const winner = eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)];
-        
-        if(window.confirm(`🎉 ${gift.name} ގެ ނަސީބުވެރިޔަކީ:\n\nނަން: ${winner.student_name}\nފޯނު: ${winner.parent_phone}\n\nމި ކުއްޖާ ހޯމް ޕޭޖަށް އަރުވަންވީތަ؟`)) {
-            await supabase.from('lhohinoor_daily_winners').insert([{ 
-                username: winner.student_name, 
-                phone: winner.parent_phone, 
-                score: 'Draw', 
-                prize: `🎁 ގުރުއަތުން ލިބުނު: ${gift.name}`, 
-                won_at: getActiveQuizDate(), 
-                congrats_count: 0, 
-                status: 'Pending' 
-            }]);
-            showToast("ނަސީބުވެރިޔާ ޕަބްލިޝް ކުރެވިއްޖެ!", "success");
-            fetchLatestWinner(); 
-        }
+    // 🔥 NEW FUNCTION: DRAW WINNER PER GIFT (LIVE PORTAL BUTTON) 🔥
+    const openLiveDraw = () => {
+        // We trigger the state in the parent by changing the view
+        window.history.pushState({ view: 'live_draw', dashView: 'overview' }, '', '');
+        const popStateEvent = new PopStateEvent('popstate', { state: { view: 'live_draw', dashView: 'overview' }});
+        window.dispatchEvent(popStateEvent);
     };
 
     const savePartner = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_partners').insert([{ name: d.name, logo_url: d.logo_url }]); e.target.reset(); loadAdminData(); };
@@ -1622,6 +1704,9 @@ function AdminPanel({
                 <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ސުވާލު ކީސާ</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none', color: adminTab==='gifts'?'#ff9800':''}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
+                
+                {/* 🔴 LIVE DRAW LAUNCH BUTTON 🔴 */}
+                <button style={{...styles.tab, background: '#d32f2f', color: 'white', borderRadius: '8px'}} onClick={openLiveDraw}>🔴 ލައިވް ގުރުއަތު ޕޯޓަލް</button>
             </div>
             
             {adminTab === 'students' && (
@@ -1677,13 +1762,8 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* GIFTS ADMIN TAB WITH FAIR DRAW BUTTONS */}
             {adminTab === 'gifts' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <div style={{background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginBottom: '20px', borderLeft: '4px solid #1976d2'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#0056b3'}}>ℹ️ <b>މަޢުލޫމާތު:</b> ގުރުއަތު ނެގޭނީ މި އިނާމު ގަންނަން ބޭނުންވާ އަދަދަށް (އެބަހީ އެ ބެޖެއް ލިބިފައިވާ) ކޮއިން ހޯދާފައިވާ ހުރިހާ ދަރިވަރުންގެ މެދުގައެވެ.</p>
-                    </div>
-
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
                         <h3 style={{color: '#e65100', marginTop: 0}}>އައު އިނާމެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="އިނާމުގެ ނަން" style={styles.input} required />
@@ -1700,7 +1780,6 @@ function AdminPanel({
                                 <td>{g.name}</td>
                                 <td className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>{g.cost} 🪙</td>
                                 <td>
-                                    <button style={{...styles.btn, background:'purple', width:'auto', marginRight: '5px', padding: '6px 12px', fontSize: '13px'}} onClick={()=>pickGiftWinner(g)}>🏆 ގުރުއަތު ނަގާ</button>
                                     <button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button>
                                 </td>
                             </tr>
