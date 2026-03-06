@@ -6,7 +6,7 @@ import './App.css';
 const BADGE_CONFIG = [
     { id: 'starter', icon: <svg width="36" height="36" fill="none" stroke="#fbc02d" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>, name: 'ފެށުން', cost: 0 },
     { id: 'quiz_master', icon: <svg width="36" height="36" fill="none" stroke="#9c27b0" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>, name: 'ކުއިޒް މާސްޓަރ', cost: 100 },
-    { id: 'math_genius', icon: <svg width="36" height="36" fill="none" stroke="#1976d2" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>, name: 'މިކްސް ޗެލެންޖް', cost: 500 },
+    { id: 'math_genius', icon: <svg width="36" height="36" fill="none" stroke="#1976d2" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>, name: 'ސުވާލު ކީސާ', cost: 500 },
     { id: 'quran_star', icon: <svg width="36" height="36" fill="none" stroke="#388e3c" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>, name: 'ޤާރީ', cost: 1000 },
     { id: 'champion', icon: <svg width="36" height="36" fill="none" stroke="#d32f2f" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>, name: 'ޗެމްޕިއަން', cost: 5000 }
 ];
@@ -121,18 +121,16 @@ export default function App() {
     supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY') { navigateTo('auth'); setAuthMode('update_password'); showToast('އައު ޕާސްވޯޑެއް ޖައްސަވާ!', 'success'); }
         if (event === 'SIGNED_IN' && session) { setUser(session.user); routeUser(session.user); }
-        // We handle SIGNED_OUT via our custom handleLogout function now
     });
     setWinnerDate(getActiveQuizDate());
   }, []);
 
-  // 🔥 POWERFUL CUSTOM LOGOUT FUNCTION 🔥
   const handleLogout = async () => {
       await supabase.auth.signOut();
       setUser(null);
       setProfileData(null);
       navigateTo('home');
-      window.location.reload(); // Force clears browser memory so Admins log out securely
+      window.location.reload(); 
   };
 
   useEffect(() => {
@@ -200,7 +198,7 @@ export default function App() {
   };
 
   const fetchLatestWinner = async () => {
-    const { data } = await supabase.from('lhohinoor_daily_winners').select('*').eq('score', 'Daily').order('won_at', { ascending: false }).limit(1).single();
+    const { data } = await supabase.from('lhohinoor_daily_winners').select('*').neq('score', 'Draw').order('won_at', { ascending: false }).limit(1).single();
     if (data) { setDailyWinner(data); setHasCongratulated(false); }
   };
 
@@ -626,15 +624,20 @@ export default function App() {
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
 
-        /* 🔥 CLEAN PROFESSIONAL NAVBAR WITH UNIVERSAL LOGOUT 🔥 */
+        /* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */
         .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 12px 3%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
         .nav-links { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
         .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; padding: 6px 8px; border-radius: 8px; user-select: none; white-space: nowrap; }
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
-        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; margin-left: 5px;}
+        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
         .nav-btn-danger:hover { background: #ffcdd2; }
+
+        /* 🔥 MARQUEE FIX 🔥 */
+        @keyframes scrollMarquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
+        .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
         `}
       </style>
       
@@ -676,7 +679,7 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 CLEAN PROFESSIONAL NAVBAR WITH UNIVERSAL LOGOUT 🔥 */}
+      {/* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */}
       <div className="main-navbar">
         <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
             ޅޮހި<span>ނޫރު</span>
@@ -687,7 +690,7 @@ export default function App() {
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
            {user ? (
-               <div style={{display: 'flex', alignItems: 'center'}}>
+               <>
                    {user.email === 'admin@lhohi.mv' ? (
                        <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
                    ) : user.email === 'shop@lhohi.mv' ? (
@@ -695,9 +698,7 @@ export default function App() {
                    ) : !profileData?.isMissing ? (
                        <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
                    ) : null}
-                   {/* UNIVERSAL SECURE LOGOUT */}
-                   <button onClick={handleLogout} className="nav-btn-danger">ލޮގްއައުޓް</button>
-               </div>
+               </>
            ) : (
                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
@@ -709,7 +710,7 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
                     <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
@@ -821,7 +822,7 @@ export default function App() {
           {/* 🔥 MONTHLY WINNERS SHOWCASE 🔥 */}
           {monthlyWinners && monthlyWinners.length > 0 && (
               <div style={{background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', marginBottom: '20px', textAlign: 'center'}}>
-                  <h3 style={{color: '#ff9800', margin: '0 0 15px 0'}}>🏆 މަހުގެ ބޮޑު ނަސީބުވެރިން 🏆</h3>
+                  <h3 style={{color: '#ff9800', margin: '0 0 15px 0'}}>🏆 ގުރުއަތުގެ ނަސީބުވެރިން 🏆</h3>
                   <div style={{display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px'}}>
                       {monthlyWinners.map(mw => (
                           <div key={mw.id} style={{minWidth: '150px', background: '#fffde7', padding: '15px', borderRadius: '10px', border: '1px solid #ffe082'}}>
@@ -835,8 +836,7 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                {/* 🔥 FIX: RELIABLE SUPABASE IMAGE URL RESTORED 🔥 */}
-                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 
                 <div className="marquee-wrapper">
                     <div className="marquee-content">
@@ -966,17 +966,17 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 DASHBOARD HEADER WITH LOGOUT CAREFULLY PLACED ON THE RIGHT 🔥 */}
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
-                <div style={{textAlign: 'right'}}>
-                    <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-                    <div style={{fontSize: '14px', color: '#666', lineHeight: '1.4'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
-                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+            {/* 🔥 DASHBOARD HEADER WITH INLINE WELCOME TEXT AND LOGOUT BURNED TO THE RIGHT 🔥 */}
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)'}}>
+                <div>
+                    <h2 style={{color: '#333', margin: '0 0 5px 0', fontSize: '20px'}}>ސްޓޫޑެންޓް ހަބް</h2>
+                    <div style={{fontSize: '15px', color: '#666', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+                        <span>މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b></span>
+                        <span style={{color: '#ccc'}}>|</span>
+                        <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
-                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
+                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', margin: 0}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1033,7 +1033,7 @@ export default function App() {
                         <div className="dash-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                         </div>
-                        <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ހިސާބު</p></div>
+                        <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ސުވާލު ކީސާ</p></div>
                     </div>
                     
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'gift_shop')} style={{borderColor: '#ff9800'}}>
@@ -1097,7 +1097,7 @@ export default function App() {
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right'}}>
                         <h4 style={{margin: '0 0 5px 0', color: '#d32f2f'}}>💯 ސްކޯ ބޯޑު</h4>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ކުއިޒް ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.quiz_total_score || 0) / 5}</span></p>
-                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>މިކްސް ކުއިޒް ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.math_total_score || 0) / 5}</span></p>
+                        <p style={{margin: '5px 0', fontSize: '14px'}}><b>ސުވާލު ކީސާ ފާސްވި އަދަދު:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{(profileData.math_total_score || 0) / 5}</span></p>
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{profileData.marks || 'ނުލިބޭ'}</span></p>
                     </div>
 
@@ -1126,7 +1126,7 @@ export default function App() {
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#e3f2fd'}}>
-                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ މިކްސް ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
+                        <h4 style={{margin: '0 0 10px 0', color: '#1976d2', borderBottom: '1px solid #bbdefb', paddingBottom: '5px'}}>🧮 މިއަދުގެ ސުވާލު ކީސާ ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
                         {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
                             <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
@@ -1149,7 +1149,7 @@ export default function App() {
                     </div>
 
                     <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
+                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
                     </div>
 
                     <div className="gift-grid">
@@ -1163,14 +1163,34 @@ export default function App() {
                                     <h4 style={{margin: '0 0 5px 0', fontSize: '13px', lineHeight: '1.3'}}>{gift.name}</h4>
                                     <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
                                     
-                                    <div style={{padding: '5px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold', background: canAfford ? '#e8f5e9' : '#f5f5f5', color: canAfford ? '#2e7d32' : '#999', width: '100%', boxSizing: 'border-box'}}>
-                                        {canAfford ? '✅ ގުރުއަތުގައި ހިމެނިއްޖެ' : '🔒 ކޮއިން މަދު'}
-                                    </div>
+                                    <button 
+                                        onClick={() => handlePurchase(gift)} 
+                                        disabled={!canAfford || loading} 
+                                        style={{...styles.btn, background: canAfford ? '#4caf50' : '#ddd', color: canAfford ? 'white' : '#999', padding: '6px', fontSize: '12px', cursor: canAfford ? 'pointer' : 'not-allowed'}}
+                                    >
+                                        {loading ? '...' : canAfford ? 'ބަދަލުކުރޭ' : 'ކޮއިން މަދު'}
+                                    </button>
                                 </div>
                             );
                         })}
                         {allGifts.length === 0 && <p style={{textAlign: 'center', width: '100%', color: '#888'}}>އަދި ފިހާރައަށް އިނާމެއް ނުލާ...</p>}
                     </div>
+
+                    {/* SHOW ORDER HISTORY */}
+                    {myOrders.length > 0 && (
+                        <div style={{marginTop: '25px', textAlign: 'right', background: 'white', padding: '15px', borderRadius: '10px'}}>
+                            <h4 style={{margin: '0 0 10px 0', borderBottom: '1px solid #eee', paddingBottom: '5px'}}>މަގޭ އޯޑަރުތައް</h4>
+                            {myOrders.map(order => (
+                                <div key={order.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px dashed #eee'}}>
+                                    <span style={{fontSize: '13px'}}>{order.item_name} <span className="ltr-text" style={{fontSize:'10px', color:'#ff9800'}}>({order.cost} 🪙)</span></span>
+                                    <span style={{fontSize: '11px', padding: '3px 8px', borderRadius: '12px', background: order.status === 'Pending' ? '#fff3cd' : '#d4edda', color: order.status === 'Pending' ? '#856404' : '#155724'}}>
+                                        {order.status === 'Pending' ? 'ލިބެންހުރީ' : 'ދޫކުރެވިފައި'}
+                                    </span>
+                                </div>
+                            ))}
+                            <p style={{fontSize: '11px', color: '#888', marginTop: '10px', textAlign: 'center'}}>އިނާމު ހޯދުމަށް ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ.</p>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1188,7 +1208,7 @@ export default function App() {
                     </div>
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
-                        <h4 style={{color: '#1976d2'}}>🧮 މިކްސް ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
+                        <h4 style={{color: '#1976d2'}}>🧮 ސުވާލު ކީސާ {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
                         <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>މަޢުލޫމާތު މުއްސަނދިކުރުމަށް އެކި ރޮނގުތަކުން ސުވާލު.</p>
                         <button onClick={startMathQuiz} style={{...styles.btn, background: '#1976d2', color: 'white', padding: '8px', fontSize: '14px'}}>ޗެލެންޖް ފަށާ!</button>
                     </div>
@@ -1245,7 +1265,7 @@ export default function App() {
                 <p>ކޮލިފައިވުމަށް %80 ހޯއްދަވަންޖެހޭނެ.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={styles.btn} onClick={startQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ފަށަމާ'}</button>
-                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
               </div>
             )}
 
@@ -1272,7 +1292,7 @@ export default function App() {
                     : 
                 <>
                   <p style={{color:'red'}}>ކޮލިފައިވުމަށް އަލުން މަސައްކަތްކުރައްވާ!</p>
-                  <button style={styles.btnSecondary} onClick={() => {navigateTo('dashboard', 'programs');}}>ޑޭޝްބޯޑަށް</button>
+                  <button style={styles.btnSecondary} onClick={() => {navigateTo('home');}}>ހޯމް ޕޭޖަށް</button>
                 </>}
               </div>
             )}
@@ -1288,7 +1308,7 @@ export default function App() {
                         <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                 </div>
-                <button style={{...styles.btn, marginTop:20}} onClick={() => { resetQuiz(); navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
+                <button style={{...styles.btn, marginTop:20}} onClick={() => { resetQuiz(); navigateTo('home'); }}>ހޯމް ޕޭޖަށް</button>
               </div>
             )}
           </div>
@@ -1305,11 +1325,11 @@ export default function App() {
             {/* 🔥 RESTORED MATH INTRO SCREEN 🔥 */}
             {mathState === 'intro' && (
               <div style={{textAlign:'right'}}>
-                <h2 style={{color: '#1976d2'}}>🧮 މިކްސް ޗެލެންޖް</h2>
+                <h2 style={{color: '#1976d2'}}>🧮 ސުވާލު ކީސާ</h2>
                 <p>5 ސުވާލު.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ޗެލެންޖް ފަށާ!'}</button>
-                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
               </div>
             )}
 
@@ -1320,11 +1340,11 @@ export default function App() {
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
                 
-                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'ltr', fontSize:'24px', color:'#333', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
+                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'rtl', fontSize:'24px', color:'#333', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
-                    <button key={i} style={{...styles.optionBtn, direction: 'ltr', textAlign: 'center', fontSize: '18px', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
+                    <button key={i} style={{...styles.optionBtn, direction: 'rtl', textAlign: 'center', fontSize: '18px', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
                   ))}
                 </div>
               </>
@@ -1344,7 +1364,7 @@ export default function App() {
                             </div>
                         ))}
                         <p style={{fontSize: '13px', color: '#666', marginTop: '15px', fontWeight: 'bold'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
-                        <button style={{...styles.btn, background: '#1976d2', marginTop: '10px'}} onClick={() => { navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
+                        <button style={{...styles.btn, background: '#1976d2', marginTop: '10px'}} onClick={() => { navigateTo('home'); }}>ހޯމް ޕޭޖަށް</button>
                     </div>
                 ) : (
                     <>
@@ -1361,13 +1381,13 @@ export default function App() {
                 <h2 style={{marginTop:0}}>ސޭވްކުރެވިއްޖެ!</h2>
 
                 <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
-                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ މިކްސް ޗެލެންޖް ޓޮޕް 10 ({getActiveQuizDate()})</h4>
+                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ސުވާލު ކީސާ ޓޮޕް 10 ({getActiveQuizDate()})</h4>
                     {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
                         <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                     )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                 </div>
 
-                <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { resetMath(); navigateTo('dashboard', 'programs'); }}>ޑޭޝްބޯޑަށް</button>
+                <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { resetMath(); navigateTo('home'); }}>ހޯމް ޕޭޖަށް</button>
               </div>
             )}
           </div>
@@ -1577,7 +1597,7 @@ function AdminPanel({
             if (!Array.isArray(parsedData)) return showToast("ޖޭސަން (JSON) ފޯމެޓް ނުބައި!", "error");
             const { error } = await supabase.from('lhohinoor_math_questions').insert(parsedData);
             if (error) throw error;
-            showToast(`${parsedData.length} މިކްސް ސުވާލު ސޭވްވެއްޖެ!`, "success");
+            showToast(`${parsedData.length} ސުވާލު ކީސާ ސޭވްވެއްޖެ!`, "success");
             setBulkJSON('');
         } catch (err) {
             showToast("މައްސަލައެއް: " + err.message, "error");
@@ -1598,7 +1618,7 @@ function AdminPanel({
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
           await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
-          showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); 
+          showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
         } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
     };
 
@@ -1613,7 +1633,7 @@ function AdminPanel({
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
                 <button style={{...styles.tab, borderBottom: adminTab==='students'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('students')}>ދަރިވަރުން</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='quiz'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('quiz')}>ސުވާލު މުބާރާތް</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>މިކްސް ކުއިޒް ސުވާލު</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ސުވާލު ކީސާ</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none', color: adminTab==='gifts'?'#ff9800':''}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
             </div>
@@ -1659,7 +1679,7 @@ function AdminPanel({
 
             {adminTab === 'math' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <h3 style={{color: '#1976d2'}}>މިކްސް ކުއިޒް ސުވާލުތައް އެއްފަހަރާ އަޕްލޯޑްކުރޭ (Bulk Upload)</h3>
+                    <h3 style={{color: '#1976d2'}}>ސުވާލު ކީސާ (Bulk Upload)</h3>
                     <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި ސުވާލުތައް ޕޭސްޓް ކުރައްވާ.</p>
                     <textarea 
                         value={bulkJSON} 
