@@ -203,27 +203,34 @@ export default function App() {
     }
   };
 
-  // 🔥 FIX: Orders correctly by won_at DATE to stop random UUID outputs 🔥
+  // 🔥 SUPER SAFE FETCH LOGIC 🔥
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners')
         .select('*')
-        .neq('score', 'Draw') 
-        .order('won_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false })
+        .limit(20); 
     
-    if (data && data.length > 0) { 
-        setDailyWinner(data[0]); 
-        setHasCongratulated(false); 
+    if (data && data.length > 0) {
+        // Find the first winner that does NOT have the word "ގުރުއަތުން" (Draw) in the prize
+        const daily = data.find(w => w.prize && !String(w.prize).includes('ގުރުއަތުން'));
+        if (daily) {
+            setDailyWinner(daily);
+            setHasCongratulated(false);
+        }
     }
   };
 
   const fetchMonthlyWinners = async () => {
       const { data } = await supabase.from('lhohinoor_daily_winners')
           .select('*')
-          .eq('score', 'Draw')
-          .order('won_at', { ascending: false })
-          .limit(6);
-      if (data) { setMonthlyWinners(data); }
+          .order('created_at', { ascending: false })
+          .limit(30);
+          
+      if (data && data.length > 0) { 
+          // Find up to 6 winners that DO have the word "ގުރުއަތުން" (Draw) in the prize
+          const monthly = data.filter(w => w.prize && String(w.prize).includes('ގުރުއަތުން')).slice(0, 6);
+          setMonthlyWinners(monthly); 
+      }
   };
 
   const fetchProfileDetails = async (userId) => {
@@ -473,11 +480,11 @@ export default function App() {
               setDrawWinnerObj(finalWinner);
               setIsSpinning(false);
               
-              // Automatically save to DB
+              // Safely save as Monthly Draw Winner (Score = 0 so it doesn't crash DB if score is INT)
               supabase.from('lhohinoor_daily_winners').insert([{ 
                   username: finalWinner.student_name, 
                   phone: finalWinner.parent_phone, 
-                  score: 'Draw', 
+                  score: 0, 
                   prize: `🎁 ގުރުއަތުން: ${gift.name}`, 
                   won_at: getActiveQuizDate(), 
                   congrats_count: 0, 
@@ -852,7 +859,7 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
                     <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
@@ -1112,9 +1119,10 @@ export default function App() {
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div style={{textAlign: 'right'}}>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-                    <div style={{fontSize: '14px', color: '#666', lineHeight: '1.4'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b> | 
-                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+                    <div style={{fontSize: '14px', color: '#666', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                        <span>މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b></span>
+                        <span style={{color: '#ccc'}}>|</span>
+                        <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
                 {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
