@@ -52,6 +52,7 @@ export default function App() {
   }, []);
 
   const [dailyWinner, setDailyWinner] = useState(null);
+  const [monthlyWinners, setMonthlyWinners] = useState([]); // 🔥 NEW STATE FOR MONTHLY WINNERS
   const [showWinnerCard, setShowWinnerCard] = useState(true);
   const [appMessage, setAppMessage] = useState({ show: false, type: '', text: '' });
   const [hasCongratulated, setHasCongratulated] = useState(false);
@@ -83,8 +84,6 @@ export default function App() {
   const [mathScore, setMathScore] = useState(0);
   const [mathLeaderboard, setMathLeaderboard] = useState([]);
 
-  const [myOrders, setMyOrders] = useState([]);
-
   const [allStudents, setAllStudents] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
@@ -92,7 +91,6 @@ export default function App() {
   const [allGifts, setAllGifts] = useState([]); 
   const [winnerDate, setWinnerDate] = useState('');
 
-  const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
   const routeUser = async (userObj) => {
@@ -109,6 +107,7 @@ export default function App() {
 
   useEffect(() => {
     fetchLatestWinner();
+    fetchMonthlyWinners(); // Fetch the gift draw winners for the homepage
     fetchPartners(); 
     fetchLeaderboards(); 
     fetchGifts(); 
@@ -188,9 +187,15 @@ export default function App() {
     }
   };
 
+  // FETCH BOTH DAILY AND MONTHLY WINNERS
   const fetchLatestWinner = async () => {
-    const { data } = await supabase.from('lhohinoor_daily_winners').select('*').order('won_at', { ascending: false }).limit(1).single();
+    const { data } = await supabase.from('lhohinoor_daily_winners').select('*').eq('score', 'Daily').order('won_at', { ascending: false }).limit(1).single();
     if (data) { setDailyWinner(data); setHasCongratulated(false); }
+  };
+
+  const fetchMonthlyWinners = async () => {
+      const { data } = await supabase.from('lhohinoor_daily_winners').select('*').eq('score', 'Draw').order('won_at', { ascending: false }).limit(5);
+      if (data) { setMonthlyWinners(data); }
   };
 
   const fetchProfileDetails = async (userId) => {
@@ -202,7 +207,6 @@ export default function App() {
         let calculatedCoins = 0;
         let totalGeneralScore = 0;
         let totalMathScore = 0;
-        let spentCoins = 0;
 
         const activeDate = getActiveQuizDate();
 
@@ -222,16 +226,8 @@ export default function App() {
 
         const todayGenCount = genAttempts ? genAttempts.filter(a => a.created_at === activeDate).length : 0;
         const todayMathCount = mathAttempts ? mathAttempts.filter(a => a.created_at === activeDate).length : 0;
-
-        const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
-        if (purchaseData) {
-            spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
-            setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
-        }
         
         if (data.level) calculatedCoins += 100;
-
-        const currentBalance = calculatedCoins - spentCoins;
 
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
         if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
@@ -242,7 +238,7 @@ export default function App() {
         const enrichedData = { 
             ...data, 
             isMissing, 
-            total_coins: currentBalance, 
+            total_coins: calculatedCoins, 
             quiz_total_score: totalGeneralScore,
             math_total_score: totalMathScore,
             quiz_attempts_today: todayGenCount,
@@ -292,8 +288,6 @@ export default function App() {
 
   const loadShopAdminData = async () => {
     setLoading(true);
-    const { data: o } = await supabase.from('lhohinoor_purchases').select('*').order('created_at', { ascending: false });
-    setShopOrders(o || []);
     const { data: w } = await supabase.from('lhohinoor_daily_winners').select('*').order('won_at', { ascending: false });
     setShopWinners(w || []);
     setLoading(false);
@@ -356,33 +350,6 @@ export default function App() {
           showToast('ޕްރޮފައިލް ސޭވް ކުރެވިއްޖެ!', 'success'); await fetchProfileDetails(user.id); setIsEditingProfile(false);
       }
       setLoading(false);
-  };
-
-  const handlePurchase = async (gift) => {
-      if (!user || !profileData) return;
-      if (profileData.total_coins < gift.cost) {
-          showToast('މި އިނާމު ގަތުމަށް ކޮއިން މަދު!', 'error');
-          return;
-      }
-      
-      if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
-          setLoading(true);
-          const { error } = await supabase.from('lhohinoor_purchases').insert([{
-              user_id: user.id,
-              phone: profileData.parent_phone,
-              student_name: profileData.student_name,
-              item_id: gift.id,
-              item_name: gift.name,
-              cost: gift.cost,
-              status: 'Pending'
-          }]);
-
-          if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
-              showToast('🎉 އިނާމު ގަނެވިއްޖެ! މިމަހުގެ ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
-              await fetchProfileDetails(user.id); 
-          }
-          setLoading(false);
-      }
   };
 
   const handlePartnerForm = async (e) => {
@@ -610,7 +577,7 @@ export default function App() {
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
 
-        /* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT) 🔥 */
+        /* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */
         .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 12px 3%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
         .nav-links { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
         .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; padding: 6px 8px; border-radius: 8px; user-select: none; white-space: nowrap; }
@@ -650,7 +617,7 @@ export default function App() {
               <div className="rays-bg"></div>
               <div className="badge-showcase" onClick={e => e.stopPropagation()}>
                   <h2 style={{color: '#ff9800', margin: '0 0 10px 0'}}>🎉 އައު އިނާމެއް!</h2>
-                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމު ގަނެވޭނެ!</p>
+                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، ގުރުއަތުގައި ބައިވެރިވެވޭނެ!</p>
                   <div style={{width: '120px', height: '120px', margin: '20px auto', borderRadius: '15px', overflow: 'hidden', border: '3px solid #ff9800', boxShadow: '0 10px 20px rgba(255,152,0,0.3)'}}>
                       <img src={celebrationGift.image_url} alt={celebrationGift.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'contain', padding: '10px'}} />
                   </div>
@@ -660,7 +627,7 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */}
+      {/* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */}
       <div className="main-navbar">
         <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
             ޅޮހި<span>ނޫރު</span>
@@ -671,15 +638,7 @@ export default function App() {
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
            {user ? (
-               <>
-                   {user.email === 'admin@lhohi.mv' ? (
-                       <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
-                   ) : user.email === 'shop@lhohi.mv' ? (
-                       <button onClick={() => navigateTo('shop_admin')} className="nav-btn-primary" style={{background: '#ff9800'}}>ފިހާރަ</button>
-                   ) : !profileData?.isMissing ? (
-                       <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
-                   ) : null}
-               </>
+               <button onClick={() => routeUser(user)} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
            ) : (
                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
@@ -690,11 +649,11 @@ export default function App() {
       {view === 'public_shop' && (
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
-                <h2 style={{color: '#f57f17', textAlign: 'center', marginBottom: '10px', fontSize: '28px'}}>🎁 ހަދިޔާ ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި އިނާމުތައް ގަނެގެން ހަދިޔާއެއް ހޯއްދަވާ!</p>
+                <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
+                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
                 </div>
 
                 <div className="gift-grid">
@@ -714,23 +673,6 @@ export default function App() {
         </div>
       )}
 
-      {/* PARTNER FORM FIX */}
-      {view === 'partner_form' && (
-          <div style={styles.centeredContainer}>
-            <div style={styles.quranCard} className="animate-card">
-                <h2 style={{color: '#2e7d32', marginTop: 0}}>ބައިވެރިއަކަށް ވެލައްވާ</h2>
-                <p style={{fontSize: '14px', color: '#666', marginBottom: '20px'}}>ޅޮހިނޫރު ޕްރޮގްރާމްތަކަށް އެހީތެރިވުމަށް އެދޭނަމަ މި ފޯމު ފުރުއްވާ.</p>
-                <form onSubmit={handlePartnerForm} style={styles.form}>
-                    <input name="business_name" placeholder="ނަން / ކުންފުނި" style={styles.input} required />
-                    <input name="contact_name" placeholder="ގުޅޭނެ ފަރާތް" style={styles.input} required />
-                    <input name="phone" placeholder="ގުޅޭނެ ނަންބަރު" type="tel" maxLength="7" onChange={handlePhoneInput} style={styles.inputLtr} required />
-                    <button type="submit" disabled={loading} style={styles.btn}>{loading ? 'ފޮނުވަނީ...' : 'ރިކުއެސްޓް ފޮނުވާ'}</button>
-                    <button type="button" onClick={() => navigateTo('home')} style={styles.btnSecondary}>ފަހަތަށް</button>
-                </form>
-            </div>
-          </div>
-      )}
-
       {view === 'info' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quizCard} className="animate-card">
@@ -741,9 +683,6 @@ export default function App() {
                   <ul className="info-list">
                       <li>ކޮންމެ ދުވަހެއްގެ ނަސީބުވެރިޔާއަށް: <b>100 ރުފިޔާގެ ގިފްޓް ވައުޗަރެއް</b>.</li>
                       <li>ފިތުރު ޢީދު ދުވަހު ގުރުއަތުން ހޮވޭ ފަރާތަކަށް: <b>ބޮޑު އިނާމު</b>!</li>
-                       <li>ޅޮހިނޫރު ކުއިޒްތަކުގައި ބެިވެރިވެގެން ކޮއިންސް ހޯދޭނެ.. މިކޮއިންސް ބޭނުންކޮށްގެން ޅޮހިނޫރު އޮންލައިން ފިހާރައިން ތަކެތި ގަނެވޭނެ</b>!</li>
-                   <li> ތަކެތި ގަތުމުން އެމަހެއްގެ ބޮޑު ގުރއަތުގައި ބައިވެރިވެވޭނެ އަދި ނަސީބަކުން  ބޮޑު އިނާމެއް ލިބިދާނެ</b>!</li>
-              
                   </ul>
               </div>
 
@@ -802,14 +741,29 @@ export default function App() {
               <p style={{fontSize:'12px', color:'#777', marginTop:'15px', borderTop:'1px dashed #eee', paddingTop:'10px'}}>އިނާމު ނެގުމަށް އޮފީހަށް ވަޑައިގަންނަވާ!</p>
             </div>
           ) : null}
+
+          {/* 🔥 MONTHLY WINNERS SHOWCASE 🔥 */}
+          {monthlyWinners && monthlyWinners.length > 0 && (
+              <div style={{background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', marginBottom: '20px', textAlign: 'center'}}>
+                  <h3 style={{color: '#ff9800', margin: '0 0 15px 0'}}>🏆 މަހުގެ ބޮޑު ނަސީބުވެރިން 🏆</h3>
+                  <div style={{display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px'}}>
+                      {monthlyWinners.map(mw => (
+                          <div key={mw.id} style={{minWidth: '150px', background: '#fffde7', padding: '15px', borderRadius: '10px', border: '1px solid #ffe082'}}>
+                              <p style={{margin: '0 0 5px 0', fontWeight: 'bold', color: '#333'}}>{mw.username}</p>
+                              <p style={{margin: 0, fontSize: '12px', color: '#d84315'}}>{mw.prize}</p>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          )}
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                <img src="https://url-shortener.me/DF5H" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 
                 <div className="marquee-wrapper">
                     <div className="marquee-content">
-                         ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 9 އަދި 10 ގައެވެ. 
+                         ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 7 އަދި 8 ގައެވެ. 
                     </div>
                 </div>
 
@@ -940,7 +894,7 @@ export default function App() {
                 <div style={{textAlign: 'right'}}>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
                     <div style={{fontSize: '14px', color: '#666', lineHeight: '1.4'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b> | 
+                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b><br/>
                         ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
@@ -1103,7 +1057,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: DIGITAL GIFT SHOP & WALLET */}
+            {/* VIEW: DIGITAL GIFT SHOP FOR LOGGED IN USER */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1112,53 +1066,33 @@ export default function App() {
                     </div>
                     
                     <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން (ބާކީ):</span>
+                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން:</span>
                         <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
                     <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ގަންނަ ކޮންމެ އިނާމަކާއެކު، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވޭނެއެވެ!</p>
+                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
                     </div>
 
                     <div className="gift-grid">
                         {allGifts.map(gift => {
                             const canAfford = (profileData.total_coins || 0) >= gift.cost;
                             return (
-                                <div key={gift.id} className="gift-card">
+                                <div key={gift.id} className="gift-card" style={{border: canAfford ? '2px solid #4caf50' : '2px solid #fff3e0'}}>
                                     <div className="gift-image-container">
                                         <img src={gift.image_url} alt={gift.name} loading="lazy" decoding="async" />
                                     </div>
                                     <h4 style={{margin: '0 0 5px 0', fontSize: '13px', lineHeight: '1.3'}}>{gift.name}</h4>
                                     <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
                                     
-                                    <button 
-                                        onClick={() => handlePurchase(gift)} 
-                                        disabled={!canAfford || loading} 
-                                        style={{...styles.btn, background: canAfford ? '#4caf50' : '#ddd', color: canAfford ? 'white' : '#999', padding: '6px', fontSize: '12px', cursor: canAfford ? 'pointer' : 'not-allowed'}}
-                                    >
-                                        {loading ? '...' : canAfford ? 'ބަދަލުކުރޭ' : 'ކޮއިން މަދު'}
-                                    </button>
+                                    <div style={{padding: '5px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold', background: canAfford ? '#e8f5e9' : '#f5f5f5', color: canAfford ? '#2e7d32' : '#999', width: '100%', boxSizing: 'border-box'}}>
+                                        {canAfford ? '✅ ގުރުއަތުގައި ހިމެނިއްޖެ' : '🔒 ކޮއިން މަދު'}
+                                    </div>
                                 </div>
                             );
                         })}
                         {allGifts.length === 0 && <p style={{textAlign: 'center', width: '100%', color: '#888'}}>އަދި ފިހާރައަށް އިނާމެއް ނުލާ...</p>}
                     </div>
-
-                    {/* SHOW ORDER HISTORY */}
-                    {myOrders.length > 0 && (
-                        <div style={{marginTop: '25px', textAlign: 'right', background: 'white', padding: '15px', borderRadius: '10px'}}>
-                            <h4 style={{margin: '0 0 10px 0', borderBottom: '1px solid #eee', paddingBottom: '5px'}}>މަގޭ އޯޑަރުތައް</h4>
-                            {myOrders.map(order => (
-                                <div key={order.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px dashed #eee'}}>
-                                    <span style={{fontSize: '13px'}}>{order.item_name} <span className="ltr-text" style={{fontSize:'10px', color:'#ff9800'}}>({order.cost} 🪙)</span></span>
-                                    <span style={{fontSize: '11px', padding: '3px 8px', borderRadius: '12px', background: order.status === 'Pending' ? '#fff3cd' : '#d4edda', color: order.status === 'Pending' ? '#856404' : '#155724'}}>
-                                        {order.status === 'Pending' ? 'ލިބެންހުރީ' : 'ދޫކުރެވިފައި'}
-                                    </span>
-                                </div>
-                            ))}
-                            <p style={{fontSize: '11px', color: '#888', marginTop: '10px', textAlign: 'center'}}>އިނާމު ހޯދުމަށް ކައުންސިލް އިދާރާއަށް ވަޑައިގަންނަވާ.</p>
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -1177,7 +1111,7 @@ export default function App() {
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4 style={{color: '#1976d2'}}>🧮 މިކްސް ޗެލެންޖް {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
-                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>މަޢުލޫމާތު މުއްސަނދިކުރުމަށް އެކި ރޮނގުތަކުން ސުވާލު. 5 ސުވާލު، ދުވާލަކު 5 ފުރުޞަތު.</p>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>މަޢުލޫމާތު މުއްސަނދިކުރުމަށް އެކި ރޮނގުތަކުން ސުވާލު.</p>
                         <button onClick={startMathQuiz} style={{...styles.btn, background: '#1976d2', color: 'white', padding: '8px', fontSize: '14px'}}>ޗެލެންޖް ފަށާ!</button>
                     </div>
 
@@ -1380,6 +1314,7 @@ export default function App() {
           />
       )}
 
+      {/* SHOP ADMIN PORTAL */}
       {view === 'shop_admin' && (
           <ShopAdminPanel 
               shopOrders={shopOrders} 
@@ -1393,7 +1328,7 @@ export default function App() {
   );
 }
 
-// 🔥 NEW: SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
+// 🔥 SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
 function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, showToast }) {
     const [shopTab, setShopTab] = useState('orders');
 
@@ -1418,7 +1353,7 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, styles, sh
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 style={{color: '#ff9800', textAlign: 'right', margin: 0}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
-                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
+                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1497,7 +1432,6 @@ function AdminPanel({
     const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ (Correct option mismatch)", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
     
-    // NEW: Manage Gifts Functionality
     const saveGift = async (e) => { 
         e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); 
         await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); 
@@ -1505,21 +1439,42 @@ function AdminPanel({
     };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
 
-    // 🔥 NEW FUNCTION: DRAW WINNER PER GIFT 🔥
+    // 🔥 DRAW WINNER BASED ON ELIGIBILITY (TOTAL COINS >= COST) 🔥
     const pickGiftWinner = async (gift) => {
-        const { data: purchases } = await supabase.from('lhohinoor_purchases').select('*').eq('item_id', gift.id);
+        // Fetch ALL students and their attempts to calculate their total coins
+        const { data: allStudentData } = await supabase.from('lhohinoor_students').select('id, student_name, parent_phone, level');
+        const { data: allQuizAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('user_id, score');
+        const { data: allMathAttempts } = await supabase.from('lhohinoor_math_attempts').select('user_id, score');
         
-        if (!purchases || purchases.length === 0) {
-            return showToast("މި އިނާމު އަދި އެއްވެސް ކުއްޖަކު ގަނެފައެއް ނުވޭ!", "warning");
+        let eligibleStudents = [];
+
+        allStudentData.forEach(student => {
+            let coins = 0;
+            if (student.level) coins += 100;
+            
+            const qAttempts = allQuizAttempts.filter(a => a.user_id === student.id);
+            const passedQ = qAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
+            coins += (passedQ * 5);
+
+            const mAttempts = allMathAttempts.filter(a => a.user_id === student.id);
+            const passedM = mAttempts.filter(a => parseInt(a.score, 10) >= 3).length;
+            coins += (passedM * 5);
+
+            if (coins >= gift.cost) {
+                eligibleStudents.push(student);
+            }
+        });
+
+        if (eligibleStudents.length === 0) {
+            return showToast(`މި އިނާމަށް ޝަރުތު ހަމަވާ އެއްވެސް ކުއްޖަކު ނެތް! (${gift.cost} ކޮއިން ބޭނުންވޭ)`, "warning");
         }
         
-        // Randomly pick a purchase (Multiple purchases = multiple chances)
-        const winner = purchases[Math.floor(Math.random() * purchases.length)];
+        const winner = eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)];
         
-        if(window.confirm(`🎉 ${gift.name} ގެ ނަސީބުވެރިޔަކީ:\n\nނަން: ${winner.student_name}\nފޯނު: ${winner.phone}\n\nމި ކުއްޖާ ހޯމް ޕޭޖަށް އަރުވަންވީތަ؟`)) {
+        if(window.confirm(`🎉 ${gift.name} ގެ ނަސީބުވެރިޔަކީ:\n\nނަން: ${winner.student_name}\nފޯނު: ${winner.parent_phone}\n\nމި ކުއްޖާ ހޯމް ޕޭޖަށް އަރުވަންވީތަ؟`)) {
             await supabase.from('lhohinoor_daily_winners').insert([{ 
                 username: winner.student_name, 
-                phone: winner.phone, 
+                phone: winner.parent_phone, 
                 score: 'Draw', 
                 prize: `🎁 ގުރުއަތުން ލިބުނު: ${gift.name}`, 
                 won_at: getActiveQuizDate(), 
@@ -1527,7 +1482,7 @@ function AdminPanel({
                 status: 'Pending' 
             }]);
             showToast("ނަސީބުވެރިޔާ ޕަބްލިޝް ކުރެވިއްޖެ!", "success");
-            fetchLatestWinner();
+            fetchLatestWinner(); // Assuming you pass this down
         }
     };
 
@@ -1563,7 +1518,7 @@ function AdminPanel({
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
           await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
-          showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
+          showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); 
         } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
     };
 
@@ -1572,7 +1527,7 @@ function AdminPanel({
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 className="ltr-text" style={{textAlign: 'right', margin: 0}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
-                <button onClick={() => supabase.auth.signOut()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
+                <button onClick={() => window.location.reload()} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
@@ -1636,9 +1591,13 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* GIFTS ADMIN TAB WITH INDIVIDUAL DRAW BUTTONS */}
+            {/* GIFTS ADMIN TAB WITH FAIR DRAW BUTTONS */}
             {adminTab === 'gifts' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                    <div style={{background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginBottom: '20px', borderLeft: '4px solid #1976d2'}}>
+                        <p style={{margin: 0, fontSize: '13px', color: '#0056b3'}}>ℹ️ <b>މަޢުލޫމާތު:</b> ގުރުއަތު ނެގޭނީ މި އިނާމު ގަންނަން ބޭނުންވާ އަދަދަށް (އެބަހީ އެ ބެޖެއް ލިބިފައިވާ) ކޮއިން ހޯދާފައިވާ ހުރިހާ ދަރިވަރުންގެ މެދުގައެވެ.</p>
+                    </div>
+
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
                         <h3 style={{color: '#e65100', marginTop: 0}}>އައު އިނާމެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="އިނާމުގެ ނަން" style={styles.input} required />
