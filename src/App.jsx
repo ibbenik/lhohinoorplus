@@ -203,11 +203,11 @@ export default function App() {
     }
   };
 
-  // 🔥 SUPER SAFE FETCH LOGIC 🔥
+  // 🔥 FIX: ROBUST FETCH FOR DAILY WINNER USING `won_at` DATE 🔥
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('won_at', { ascending: false }) // Sorts by the date of the quiz
         .limit(20); 
     
     if (data && data.length > 0) {
@@ -223,7 +223,7 @@ export default function App() {
   const fetchMonthlyWinners = async () => {
       const { data } = await supabase.from('lhohinoor_daily_winners')
           .select('*')
-          .order('created_at', { ascending: false })
+          .order('won_at', { ascending: false })
           .limit(30);
           
       if (data && data.length > 0) { 
@@ -718,8 +718,6 @@ export default function App() {
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
-        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
-        .nav-btn-danger:hover { background: #ffcdd2; }
 
         /* 🔥 MARQUEE FIX 🔥 */
         @keyframes scrollMarquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
@@ -859,7 +857,7 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
                     <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
@@ -954,7 +952,7 @@ export default function App() {
                   </div>
               </div>
               
-              <p style={{fontSize:'14px', margin:'10px 0', fontWeight: 'bold'}}>🎁 {dailyWinner.prize}</p>
+              <p style={{fontSize:'14px', margin:'10px 0', fontWeight: 'bold'}}>{dailyWinner.prize}</p>
               
               <button 
                   onClick={handleShareWinner} 
@@ -1706,7 +1704,7 @@ function AdminPanel({
         const eligibleCandidates = attempts.filter(attempt => !recentWinnerPhones.includes(attempt.phone));
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
-          await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: 'Daily', prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
+          await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
           showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
         } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
     };
