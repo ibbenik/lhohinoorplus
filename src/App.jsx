@@ -197,16 +197,20 @@ export default function App() {
     }
   };
 
-  // 🔥 FIX: Correctly fetching the Daily Winner by ignoring the "Draw" gifts 🔥
+  // 🔥 ROBUST FETCH FOR WINNERS 🔥
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners')
         .select('*')
-        .neq('score', 'Draw') // Ignore Monthly Gift Draws
         .order('won_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(); // Prevents crashes if no winner is found
+        .limit(10);
     
-    if (data) { setDailyWinner(data); setHasCongratulated(false); }
+    if (data && data.length > 0) {
+        const daily = data.find(w => w.score !== 'Draw');
+        if (daily) {
+            setDailyWinner(daily);
+            setHasCongratulated(false);
+        }
+    }
   };
 
   const fetchMonthlyWinners = async () => {
@@ -642,8 +646,6 @@ export default function App() {
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
-        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
-        .nav-btn-danger:hover { background: #ffcdd2; }
 
         /* 🔥 MARQUEE FIX 🔥 */
         @keyframes scrollMarquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
@@ -690,7 +692,7 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 CLEAN PROFESSIONAL NAVBAR 🔥 */}
+      {/* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */}
       <div className="main-navbar">
         <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
             ޅޮހި<span>ނޫރު</span>
@@ -701,15 +703,7 @@ export default function App() {
            <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
            
            {user ? (
-               <>
-                   {user.email === 'admin@lhohi.mv' ? (
-                       <button onClick={() => navigateTo('admin')} className="nav-btn-primary">އެޑްމިން</button>
-                   ) : user.email === 'shop@lhohi.mv' ? (
-                       <button onClick={() => navigateTo('shop_admin')} className="nav-btn-primary" style={{background: '#ff9800'}}>ފިހާރަ</button>
-                   ) : !profileData?.isMissing ? (
-                       <button onClick={() => navigateTo('dashboard', 'overview')} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
-                   ) : null}
-               </>
+               <button onClick={() => routeUser(user)} className="nav-btn-primary">ޑޭޝްބޯޑު</button>
            ) : (
                <button onClick={() => { navigateTo('auth'); setAuthMode('login'); }} className="nav-btn-primary">ލޮގިން</button>
            )}
@@ -721,7 +715,7 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
                     <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
@@ -977,17 +971,17 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 DASHBOARD HEADER WITH LOGOUT CAREFULLY PLACED ON THE RIGHT 🔥 */}
+            {/* 🔥 DASHBOARD HEADER WITH LOGOUT MOVED TO THE RIGHT + PROPER ALIGNMENT 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div style={{textAlign: 'right'}}>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
-                    <div style={{fontSize: '14px', color: '#666', lineHeight: '1.4'}}>
-                        މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b> | 
-                        ކޮއިން: <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
+                    <div style={{fontSize: '14px', color: '#666', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                        <span>މަރުޙަބާ, <b style={{color: '#0056b3'}}>{profileData.student_name.split(' ')[0]}</b></span>
+                        <span style={{color: '#ccc'}}>|</span>
+                        <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
-                <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
+                <button onClick={handleLogout} style={{...styles.btnSecondary, background: 'transparent', color: '#d32f2f', border: '1px solid #d32f2f', padding: '6px 12px', fontSize: '13px', width: 'auto'}}>ލޮގްއައުޓް</button>
             </div>
 
             {/* GAMIFICATION TOP BAR WITH SVGS */}
@@ -1146,7 +1140,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: DIGITAL GIFT SHOP FOR LOGGED IN USER */}
+            {/* VIEW: DIGITAL GIFT SHOP & WALLET */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1256,7 +1250,7 @@ export default function App() {
                 <p>ކޮލިފައިވުމަށް %80 ހޯއްދަވަންޖެހޭނެ.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={styles.btn} onClick={startQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ފަށަމާ'}</button>
-                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
               </div>
             )}
 
@@ -1404,6 +1398,7 @@ export default function App() {
           />
       )}
 
+      {/* SHOP ADMIN PORTAL */}
       {view === 'shop_admin' && (
           <ShopAdminPanel 
               shopOrders={shopOrders} 
@@ -1418,7 +1413,7 @@ export default function App() {
   );
 }
 
-// 🔥 NEW: SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
+// 🔥 SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
 function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogout, styles, showToast }) {
     const [shopTab, setShopTab] = useState('orders');
 
