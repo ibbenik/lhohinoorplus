@@ -4,7 +4,7 @@ import './App.css';
 
 // 💎 BEAUTIFUL 3D GEM & MEDAL SVG GENERATORS
 const getMedalSvg = (color1, color2) => (
-    <svg width="40" height="40" viewBox="0 0 24 24">
+    <svg width="42" height="42" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0px 4px 4px rgba(0,0,0,0.15))' }}>
        <defs>
           <linearGradient id={`med_${color1.replace('#','')}`} x1="0" y1="0" x2="1" y2="1">
              <stop offset="0%" stopColor={color1}/>
@@ -13,12 +13,12 @@ const getMedalSvg = (color1, color2) => (
        </defs>
        <circle cx="12" cy="12" r="10" fill={`url(#med_${color1.replace('#','')})`} stroke="#fff" strokeWidth="1" />
        <circle cx="12" cy="12" r="7" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="2 2"/>
-       <path d="M12 7l1.5 4h4l-3 2.5 1 4-3.5-2.5-3.5 2.5 1-4-3-2.5h4z" fill="#fff" opacity="0.8"/>
+       <path d="M12 7l1.5 4h4l-3 2.5 1 4-3.5-2.5-3.5 2.5 1-4-3-2.5h4z" fill="#fff" opacity="0.9"/>
     </svg>
 );
 
 const getGemSvg = (mainColor, lightColor, darkColor) => (
-    <svg width="40" height="40" viewBox="0 0 24 24">
+    <svg width="42" height="42" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.2))' }}>
         <defs>
             <linearGradient id={`gradTop_${mainColor.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={lightColor}/>
@@ -31,10 +31,10 @@ const getGemSvg = (mainColor, lightColor, darkColor) => (
         </defs>
         <polygon points="12,22 2,8 22,8" fill={`url(#gradBot_${mainColor.replace('#','')})`} />
         <polygon points="2,8 6,2 18,2 22,8" fill={`url(#gradTop_${mainColor.replace('#','')})`} />
-        <polygon points="6,2 12,8 18,2" fill={lightColor} opacity="0.6" />
+        <polygon points="6,2 12,8 18,2" fill={lightColor} opacity="0.8" />
         <polygon points="2,8 12,22 12,8" fill="#000" opacity="0.15" />
-        <polygon points="22,8 12,22 12,8" fill="#fff" opacity="0.15" />
-        <polygon points="6,2 12,8 2,8" fill="#fff" opacity="0.3" />
+        <polygon points="22,8 12,22 12,8" fill="#fff" opacity="0.2" />
+        <polygon points="6,2 12,8 2,8" fill="#fff" opacity="0.4" />
     </svg>
 );
 
@@ -286,13 +286,15 @@ export default function App() {
         if (genAttempts) {
             totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
             const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
-            calculatedCoins += (passedGeneral * 5);
+            // 💡 ބޯނަސް އަދަދު ބަދަލުކުރަން ބޭނުންނަމަ މިތާ އިންނަ 5 ބަދަލުކުރައްވާ (e.g., 10)
+            calculatedCoins += (passedGeneral * 5); 
         }
 
         const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score, created_at').eq('user_id', userId);
         if (mathAttempts) {
             totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
             const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
+            // 💡 ބޯނަސް އަދަދު ބަދަލުކުރަން ބޭނުންނަމަ މިތާ އިންނަ 5 ބަދަލުކުރައްވާ (e.g., 10)
             calculatedCoins += (passedMath * 5);
         }
 
@@ -476,7 +478,6 @@ export default function App() {
 
   // 🔥 NEW FAIR TICKET-BASED LIVE DRAW EXECUTOR 🔥
   const executeLiveDraw = async (gift) => {
-      // Find all tickets bought specifically for THIS gift
       const { data: ticketBuyers } = await supabase.from('lhohinoor_purchases')
                                         .select('user_id, student_name, phone')
                                         .eq('item_id', gift.id);
@@ -496,7 +497,6 @@ export default function App() {
 
       let counter = 0;
       const spinInterval = setInterval(() => {
-          // If a student bought 3 tickets, their name is in the array 3 times (higher chance!)
           setSpinName(ticketBuyers[Math.floor(Math.random() * ticketBuyers.length)].student_name);
           counter++;
           
@@ -744,11 +744,13 @@ export default function App() {
         .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
         
-       .live-draw-container { text-align: center; color: white; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow-y: auto; overflow-x: hidden; }
+        /* 🔥 RESPONSIVE LIVE DRAW STYLES 🔥 */
+        .live-draw-container { text-align: center; color: white; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow-y: auto; overflow-x: hidden; }
         .spinner-box { background: white; color: #333; padding: 25px 15px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 95%; max-width: 600px; z-index: 2; position: relative; box-sizing: border-box; margin: auto; }
         .spin-name { font-size: clamp(26px, 7vw, 60px); font-weight: bold; margin: 20px 0; color: #d32f2f; line-height: 1.3; word-break: break-word; padding: 0 10px; }
         .spin-name.spinning { animation: pulseText 0.2s infinite; color: #555; }
         .live-gift-img { width: clamp(100px, 30vw, 150px); height: clamp(100px, 30vw, 150px); object-fit: contain; margin-bottom: 15px; border-bottom: 3px solid #eee; padding-bottom: 15px; }
+
         .cert-container { background: #fff9e6; padding: 30px; border: 15px solid #d4af37; border-radius: 5px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 20px; }
         .cert-inner { border: 2px dashed #b8860b; padding: 30px; }
         .cert-title { color: #8b6508; font-size: 36px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #8b6508; display: inline-block; padding-bottom: 10px; }
@@ -771,8 +773,8 @@ export default function App() {
               <div className="badge-showcase" onClick={e => e.stopPropagation()}>
                   <h2 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>މަރުޙަބާ!</h2>
                   <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>އައު ބެޖެއް ލިބިއްޖެ</p>
-                  <div style={{transform: 'scale(2.5)', margin: '40px 0', filter: 'drop-shadow(0px 10px 10px rgba(255,215,0,0.8))'}}>{celebrationBadge.icon}</div>
-                  <h3 style={{color: '#333', margin: '0 0 5px 0'}}>{celebrationBadge.name}</h3>
+                  <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100px'}}>{celebrationBadge.icon}</div>
+                  <h3 style={{color: '#333', margin: '15px 0 5px 0'}}>{celebrationBadge.name}</h3>
                   <button onClick={() => setCelebrationBadge(null)} style={{...styles.btn, background: '#fbc02d', color: '#333', marginTop: '20px'}}>ކުރިއަށްދޭ</button>
               </div>
           </div>
@@ -799,7 +801,7 @@ export default function App() {
               
               {!isSpinning && !drawWinnerObj && (
                   <>
-                      <h1 style={{fontSize: '40px', color: '#ffd700', textShadow: '2px 2px 10px rgba(0,0,0,0.5)', marginBottom: '40px'}}>🎁 މަހުގެ ބޮޑު ގުރުއަތުލުން 🎁</h1>
+                      <h1 style={{fontSize: 'clamp(30px, 5vw, 40px)', color: '#ffd700', textShadow: '2px 2px 10px rgba(0,0,0,0.5)', marginBottom: '40px'}}>🎁 މަހުގެ ބޮޑު ގުރުއަތުލުން 🎁</h1>
                       
                       <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1000px'}}>
                           {allGifts.map(gift => (
@@ -818,10 +820,10 @@ export default function App() {
               {(isSpinning || drawWinnerObj || spinName.includes('ކުއްޖަކު ނެތް')) && (
                   <div className="spinner-box animate-card">
                       {activeDrawGift && <img src={activeDrawGift.image_url} alt="Gift" className="live-gift-img" />}
-                      <h2 style={{color: '#0056b3', margin: 0}}>{activeDrawGift?.name}</h2>
+                      <h2 style={{color: '#0056b3', margin: 0, fontSize: 'clamp(20px, 4vw, 24px)'}}>{activeDrawGift?.name}</h2>
                       <p style={{color: '#666', marginTop: '5px'}}>{spinName.includes('ކުއްޖަކު ނެތް') ? 'ނަތީޖާ:' : 'ނަސީބުވެރިޔާ:'}</p>
                       
-                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`} style={{ fontSize: spinName.includes('ކުއްޖަކު ނެތް') ? '30px' : '60px' }}>
+                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`}>
                           {spinName}
                       </div>
 
@@ -910,6 +912,7 @@ export default function App() {
           </div>
       )}
 
+      {/* 🔥 NEW INFO PAGE EXPLAINING THE TICKET RULES 🔥 */}
       {view === 'info' && (
         <div style={styles.centeredContainer}>
           <div style={{...styles.quizCard, maxWidth: '700px'}} className="animate-card">
@@ -957,7 +960,6 @@ export default function App() {
         </div>
       )}
 
-      {/* HOME */}
       {view === 'home' && (
         <div style={styles.centeredGrid}>
           
@@ -1148,7 +1150,6 @@ export default function App() {
                 <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
-            {/* GAMIFICATION TOP BAR */}
             <div className="dash-topbar animate-card">
                 <div className="dash-stat">
                     <svg width="24" height="24" fill="none" stroke="#FFD700" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-3-4h6"/></svg>
@@ -1167,7 +1168,6 @@ export default function App() {
                 </div>
             </div>
 
-            {/* SUB-ROUTER VIEWS */}
             {dashView === 'overview' && (
                 <div className="dash-menu-grid animate-card">
                     
@@ -1203,6 +1203,17 @@ export default function App() {
                         </div>
                         <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ސުވާލު ކީސާ</p></div>
                     </div>
+
+                    {/* 🔥 NEW BONUS COIN HUB BUTTON 🔥 */}
+                    <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'bonus_hub')} style={{borderColor: '#4caf50'}}>
+                        <div className="dash-icon" style={{color: '#4caf50', background: '#e8f5e9'}}>
+                            <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <div>
+                            <p className="dash-menu-title" style={{color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން</p>
+                            <p className="dash-menu-sub">އެހެނިހެން ޓާސްކްތައް ފުރިހަމަކޮށް ކޮއިން ހޯދާ!</p>
+                        </div>
+                    </div>
                     
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'gift_shop')} style={{borderColor: '#ff9800'}}>
                         <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}>
@@ -1213,7 +1224,64 @@ export default function App() {
                 </div>
             )}
 
-            {/* 🔥 VIEW: DIGITAL CERTIFICATES 🔥 */}
+            {/* ✨ NEW VIEW: BONUS COINS HUB ✨ */}
+            {dashView === 'bonus_hub' && (
+                <div style={{...styles.card, background: '#f4fbf5'}} className="animate-card">
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #c8e6c9', paddingBottom: '10px', marginBottom: '15px'}}>
+                        <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#2e7d32', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
+                        <h3 style={{margin: 0, color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން ހަބް</h3>
+                    </div>
+
+                    {/* 🔥 1. STREAK BONUS 🔥 */}
+                    <div className="program-card" style={{background: 'linear-gradient(135deg, #ff9a9e 0%, #ffcdd2 100%)', borderColor: '#ef5350', marginBottom: '15px', color: '#b71c1c'}}>
+                        <h3 style={{margin: '0 0 5px 0', fontSize: '24px'}}>🔥 މަގޭ ސްޓްރީކް: <span className="ltr-text">3</span> ދުވަސް</h3>
+                        <p style={{fontSize: '12px', margin: '0 0 10px 0'}}>ވިދިވިދިގެން 7 ދުވަހު ކުއިޒް ކުޅެފިނަމަ ބޮޑު ބޯނަސް އެއް ލިބޭނެ!</p>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '10px'}}>
+                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
+                                <div key={i} style={{width: '25px', height: '25px', borderRadius: '50%', background: i < 3 ? '#e53935' : 'white', color: i < 3 ? 'white' : '#999', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold'}}>{day}</div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 📚 2. READ & EARN */}
+                    <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
+                        <h4 style={{color: '#1976d2', margin: '0 0 10px 0'}}>📚 ކިޔާލާފައި ހޯދާ (Read & Earn)</h4>
+                        <div style={{background: '#f5f5f5', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #1976d2'}}>
+                            <h5 style={{margin: '0 0 5px 0'}}>މިއަދުގެ ޙަދީޘް</h5>
+                            <p style={{fontSize: '13px', color: '#555', lineHeight: '1.6'}}>ރަސޫލާ (ޞ) ޙަދީޘް ކުރެއްވިއެވެ: "ތިޔަބައިމީހުންގެ ތެރެއިން އެންމެ ހެޔޮކަން ބޮޑުވެގެންވާ މީހަކީ، ޤުރުއާން އުނގެނި އަދި އެހެންމީހުންނަށް އެ އުނގަންނައިދޭ މީހާއެވެ." (ބުޚާރީ)</p>
+                            <button onClick={() => showToast('🎉 10 ކޮއިން ލިބިއްޖެ!', 'success')} style={{...styles.btn, background: '#1976d2', padding: '8px', fontSize: '13px', marginTop: '10px'}}>ކިޔައިފިން (+10 🪙)</button>
+                        </div>
+                    </div>
+
+                    {/* 🧩 3. MINI PUZZLE */}
+                    <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
+                        <h4 style={{color: '#e65100', margin: '0 0 10px 0'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h4>
+                        <div style={{background: '#fff3e0', padding: '15px', borderRadius: '8px', border: '1px dashed #ffb74d'}}>
+                            <p style={{margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold'}}>މިއީ ޅޮހީގެ ކޮން ތަނެއް؟</p>
+                            <div style={{width: '100%', height: '120px', background: '#ccc', borderRadius: '8px', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666'}}>
+                                [ރަށުގެ ތަނެއްގެ ފޮޓޯއެއް]
+                            </div>
+                            <input placeholder="ޖަވާބު ލިޔުއްވާ..." style={{...styles.input, marginBottom: '10px', fontSize: '13px'}} />
+                            <button onClick={() => showToast('ޖަވާބު ފޮނުވިއްޖެ! ރަނގަޅުނަމަ 30 ކޮއިން ލިބޭނެ.', 'success')} style={{...styles.btn, background: '#ff9800', padding: '8px', fontSize: '13px'}}>ޖަވާބު ފޮނުވާ (+30 🪙)</button>
+                        </div>
+                    </div>
+
+                    {/* 🌟 4. GOOD BEHAVIOR (GOOD DEEDS) */}
+                    <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: 'white'}}>
+                        <h4 style={{color: '#8e24aa', margin: '0 0 10px 0'}}>🌟 އަޚްލާޤީ ތަރި (Good Deeds)</h4>
+                        <p style={{fontSize: '12px', color: '#666', marginBottom: '10px'}}>މިއަދު ކުރެވުނު ރަނގަޅު ކަމެއް ހުށަހަޅާށެވެ.</p>
+                        <select style={{...styles.input, marginBottom: '10px', fontSize: '13px'}}>
+                            <option>ޖަމާޢަތުގައި ނަމާދުކުރުން</option>
+                            <option>މަންމަ/ބައްޕައަށް ގޭތެރޭގައި އެހީވުން</option>
+                            <option>މިސްކިތް ސާފުކުރުން</option>
+                            <option>ޤުރުއާން ކިޔެވުން</option>
+                        </select>
+                        <button onClick={() => showToast('ހުށަހެޅިއްޖެ! އެޕްރޫވް ވުމުން 20 ކޮއިން ލިބޭނެ.', 'success')} style={{...styles.btn, background: '#8e24aa', padding: '8px', fontSize: '13px'}}>ހުށަހަޅާ (+20 🪙)</button>
+                    </div>
+
+                </div>
+            )}
+
             {dashView === 'certificates' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1300,7 +1368,6 @@ export default function App() {
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{profileData.marks || 'ނުލިބޭ'}</span></p>
                     </div>
 
-                    {/* 🔥 3D BADGES SHOWCASE 🔥 */}
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4 style={{margin: '0 0 10px 0', color: '#fbc02d'}}>🏅 ލައިފްޓައިމް ބެޖްތައް</h4>
                         <p style={{fontSize: '11px', color: '#666', marginTop: 0}}>މިއީ މިހާތަނަށް ލިބުނު ޖުމްލަ ކޮއިން (<span className="ltr-text">{profileData.lifetime_coins}</span>) އަށް ބަލައިގެން ދެވޭ ޝަރަފެކެވެ.</p>
@@ -1335,7 +1402,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* 🔥 NEW FAIR GIFT TICKET SHOP 🔥 */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
