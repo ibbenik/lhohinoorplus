@@ -38,7 +38,6 @@ const getGemSvg = (mainColor, lightColor, darkColor) => (
     </svg>
 );
 
-// 🏅 NEW TIERED BADGE SETTINGS (LIFETIME ACHIEVEMENT)
 const BADGE_CONFIG = [
     { id: 'bronze', name: 'ބްރޯންޒް', cost: 100, icon: getMedalSvg('#cd7f32', '#8b5a2b') },
     { id: 'silver', name: 'ސިލްވަރ', cost: 150, icon: getMedalSvg('#e5e4e2', '#a9a9a9') },
@@ -68,21 +67,12 @@ export default function App() {
   };
 
   const handleGiftShopNavigation = () => {
-      if (user && profileData && !profileData.isMissing) {
-          navigateTo('dashboard', 'gift_shop');
-      } else {
-          navigateTo('public_shop');
-      }
+      if (user && profileData && !profileData.isMissing) { navigateTo('dashboard', 'gift_shop'); } else { navigateTo('public_shop'); }
   };
 
   useEffect(() => {
       const handlePopState = (e) => {
-          if (e.state && e.state.view) {
-              setView(e.state.view);
-              if (e.state.dashView) setDashView(e.state.dashView);
-          } else {
-              setView('home');
-          }
+          if (e.state && e.state.view) { setView(e.state.view); if (e.state.dashView) setDashView(e.state.dashView); } else { setView('home'); }
       };
       window.addEventListener('popstate', handlePopState);
       window.history.replaceState({ view: 'home', dashView: 'overview' }, '', '');
@@ -124,6 +114,13 @@ export default function App() {
 
   const [myOrders, setMyOrders] = useState([]);
 
+  // 🔥 NEW ADMIN & BONUS STATES 🔥
+  const [appSettings, setAppSettings] = useState({ read_text: 'މިއަދުގެ ޙަދީޘް: ...', read_coins: 10, puzzle_image_url: '', puzzle_answer: '', puzzle_coins: 30 });
+  const [todayClaims, setTodayClaims] = useState([]);
+  const [puzzleInput, setPuzzleInput] = useState('');
+  const [behaviorInput, setBehaviorInput] = useState('ޖަމާޢަތުގައި ނަމާދުކުރުން');
+  const [pendingClaims, setPendingClaims] = useState([]);
+
   const [allStudents, setAllStudents] = useState([]);
   const [allQuestions, setAllQuestions] = useState([]);
   const [allPartners, setAllPartners] = useState([]);
@@ -134,7 +131,6 @@ export default function App() {
   const [shopOrders, setShopOrders] = useState([]);
   const [shopWinners, setShopWinners] = useState([]);
 
-  // 🔥 LIVE DRAW STATE 🔥
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinName, setSpinName] = useState("ނަސީބުވެރިޔާ ހޯދަނީ...");
   const [activeDrawGift, setActiveDrawGift] = useState(null);
@@ -158,6 +154,7 @@ export default function App() {
     fetchPartners(); 
     fetchLeaderboards(); 
     fetchGifts(); 
+    fetchAppSettings();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); routeUser(session.user); }
@@ -177,36 +174,168 @@ export default function App() {
       window.location.reload(); 
   };
 
-  useEffect(() => {
-      if (profileData && allGifts.length > 0) {
-          const currentCoins = profileData.total_coins || 0;
-          const unlockedGifts = allGifts.filter(g => currentCoins >= g.cost);
-          
-          if (prevUnlockedGiftsRef.current === -1) {
-              prevUnlockedGiftsRef.current = unlockedGifts.length;
-          } else if (unlockedGifts.length > prevUnlockedGiftsRef.current) {
-              const newlyUnlocked = unlockedGifts.sort((a,b) => b.cost - a.cost)[0];
-              setCelebrationGift(newlyUnlocked);
-              prevUnlockedGiftsRef.current = unlockedGifts.length;
-          } else {
-              prevUnlockedGiftsRef.current = unlockedGifts.length;
-          }
-      }
-  }, [profileData?.total_coins, allGifts]);
-
-  const handlePhoneInput = (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 7); };
-  const validatePhone = (phone) => /^[79]\d{6}$/.test(phone);
-  const validateIDCard = (id) => { const clean = id.replace(/\s/g, '').toUpperCase(); return clean.startsWith('A') && clean.length >= 6; };
   const getActiveQuizDate = () => {
     const now = new Date();
     if (now.getHours() < 9 || (now.getHours() === 9 && now.getMinutes() < 30)) now.setDate(now.getDate() - 1);
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
+  const fetchAppSettings = async () => {
+      const { data } = await supabase.from('lhohinoor_app_settings').select('*').eq('id', 1).single();
+      if (data) setAppSettings(data);
+  };
+
+  const fetchProfileDetails = async (userId) => {
+    const { data } = await supabase.from('lhohinoor_students').select('*').eq('id', userId).maybeSingle();
+    
+    if (data) {
+        const isMissing = !data.id_card || data.id_card === '' || !data.parent_phone || data.parent_phone === '' || !data.parent_address || data.parent_address === '' || !data.grade || data.grade === '';
+        
+        let calculatedCoins = 0; 
+        let totalGeneralScore = 0;
+        let totalMathScore = 0;
+        let spentCoins = 0; 
+        let certCount = 0;
+        let currentStreak = 0;
+
+        const activeDate = getActiveQuizDate();
+
+        // 1. Fetch Quiz Attempts
+        const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score, created_at').eq('user_id', userId);
+        if (genAttempts && genAttempts.length > 0) {
+            totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
+            const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
+            calculatedCoins += (passedGeneral * 5);
+
+            // 🔥 CALCULATE REAL STREAK 🔥
+            const uniqueDates = [...new Set(genAttempts.map(a => a.created_at))].sort().reverse();
+            let checkDate = new Date(activeDate);
+            
+            // If haven't played today yet, start checking from yesterday
+            if (!uniqueDates.includes(activeDate)) {
+                checkDate.setDate(checkDate.getDate() - 1);
+            }
+
+            while(true) {
+                const dStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
+                if (uniqueDates.includes(dStr)) {
+                    currentStreak++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // 2. Fetch Math Attempts
+        const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score, created_at').eq('user_id', userId);
+        if (mathAttempts) {
+            totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
+            const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
+            calculatedCoins += (passedMath * 5);
+        }
+
+        // 3. Fetch Bonus Claims
+        const { data: claimsData } = await supabase.from('lhohinoor_bonus_claims').select('*').eq('user_id', userId);
+        if (claimsData) {
+            // Add approved bonus coins
+            calculatedCoins += claimsData.filter(c => c.status === 'Approved').reduce((sum, c) => sum + c.coins_awarded, 0);
+            // Save today's claims to state
+            setTodayClaims(claimsData.filter(c => c.claim_date === activeDate));
+        }
+
+        const todayGenCount = genAttempts ? genAttempts.filter(a => a.created_at === activeDate).length : 0;
+        const todayMathCount = mathAttempts ? mathAttempts.filter(a => a.created_at === activeDate).length : 0;
+
+        // 4. Fetch Purchases
+        const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
+        if (purchaseData) {
+            spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
+            setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
+        }
+        
+        if (data.level && String(data.level).trim() !== '' && data.level !== 'N/A') {
+            calculatedCoins += 100;
+            certCount = 1; 
+        }
+
+        const currentBalance = calculatedCoins - spentCoins; 
+
+        // Badge Calculations
+        const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
+        if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
+            setCelebrationBadge(BADGE_CONFIG[unlockedBadgesCount - 1]);
+        }
+        prevBadgeCountRef.current = unlockedBadgesCount; 
+
+        const enrichedData = { 
+            ...data, 
+            isMissing, 
+            total_coins: currentBalance, 
+            lifetime_coins: calculatedCoins, 
+            quiz_total_score: totalGeneralScore,
+            math_total_score: totalMathScore,
+            quiz_attempts_today: todayGenCount,
+            math_attempts_today: todayMathCount,
+            unlocked_badges: unlockedBadgesCount, 
+            total_certificates: certCount,
+            current_streak: currentStreak
+        };
+        
+        setProfileData(enrichedData);
+        
+        if (isMissing) { navigateTo('profile_setup'); } 
+        else if (view !== 'quiz' && view !== 'math_quiz') { navigateTo('dashboard'); }
+    } else {
+        setProfileData({ student_name: "", id_card: "", parent_phone: "", parent_address: "", grade: "", isMissing: true });
+        navigateTo('profile_setup');
+    }
+  };
+
+  // 🔥 BONUS HUB CLAIM HANDLERS 🔥
+  const handleBonusClaim = async (taskType, coins, extraInfo = '') => {
+      if (todayClaims.some(c => c.task_type === taskType && c.status !== 'Rejected')) {
+          showToast('މިއަދުގެ މި ޓާސްކް ފުރިހަމަކޮށްފިން!', 'warning'); return;
+      }
+      setLoading(true);
+      const isPending = taskType.startsWith('behavior');
+      const actualTaskType = isPending ? `behavior: ${extraInfo}` : taskType;
+      
+      const { error } = await supabase.from('lhohinoor_bonus_claims').insert({ 
+          user_id: user.id, 
+          task_type: actualTaskType, 
+          claim_date: getActiveQuizDate(), 
+          coins_awarded: coins, 
+          status: isPending ? 'Pending' : 'Approved' 
+      });
+
+      if (!error) {
+          if (isPending) showToast('ހުށަހެޅިއްޖެ! އެޕްރޫވް ވުމުން ކޮއިން ލިބޭނެ.', 'success');
+          else showToast(`🎉 ${coins} ކޮއިން ލިބިއްޖެ!`, 'success');
+          await fetchProfileDetails(user.id);
+      } else {
+          showToast('މައްސަލައެއް ދިމާވެއްޖެ.', 'error');
+      }
+      setLoading(false);
+  };
+
+  const submitPuzzle = async () => {
+      if (!puzzleInput) return;
+      if (puzzleInput.trim().toLowerCase() === appSettings.puzzle_answer.trim().toLowerCase()) {
+          handleBonusClaim('puzzle', appSettings.puzzle_coins);
+      } else {
+          showToast('ޖަވާބު ނުބައި! އަލުން މަސައްކަތްކުރައްވާ.', 'error');
+      }
+  };
+
   const showToast = (text, type = 'error') => {
       setAppMessage({ show: true, type, text });
       setTimeout(() => setAppMessage({ show: false, type: '', text: '' }), 4000);
   };
+
+  const handlePhoneInput = (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 7); };
+  const validatePhone = (phone) => /^[79]\d{6}$/.test(phone);
+  const validateIDCard = (id) => { const clean = id.replace(/\s/g, '').toUpperCase(); return clean.startsWith('A') && clean.length >= 6; };
 
   const handleCongratulate = async () => {
     if (hasCongratulated || !dailyWinner) return;
@@ -242,125 +371,32 @@ export default function App() {
   };
 
   const fetchLatestWinner = async () => {
-    const { data } = await supabase.from('lhohinoor_daily_winners')
-        .select('*')
-        .order('won_at', { ascending: false }) 
-        .limit(20); 
-    
+    const { data } = await supabase.from('lhohinoor_daily_winners').select('*').order('won_at', { ascending: false }).limit(20); 
     if (data && data.length > 0) {
         const daily = data.find(w => w.prize && !String(w.prize).includes('ގުރުއަތުން'));
-        if (daily) {
-            setDailyWinner(daily);
-            setHasCongratulated(false);
-        }
+        if (daily) { setDailyWinner(daily); setHasCongratulated(false); }
     }
   };
 
   const fetchMonthlyWinners = async () => {
-      const { data } = await supabase.from('lhohinoor_daily_winners')
-          .select('*')
-          .order('won_at', { ascending: false })
-          .limit(30);
-          
-      if (data && data.length > 0) { 
-          const monthly = data.filter(w => w.prize && String(w.prize).includes('ގުރުއަތުން')).slice(0, 6);
-          setMonthlyWinners(monthly); 
-      }
-  };
-
-  const fetchProfileDetails = async (userId) => {
-    const { data } = await supabase.from('lhohinoor_students').select('*').eq('id', userId).maybeSingle();
-    
-    if (data) {
-        const isMissing = !data.id_card || data.id_card === '' || !data.parent_phone || data.parent_phone === '' || !data.parent_address || data.parent_address === '' || !data.grade || data.grade === '';
-        
-        let calculatedCoins = 0; // Lifetime Coins for Badges
-        let totalGeneralScore = 0;
-        let totalMathScore = 0;
-        let spentCoins = 0; // Coins spent in shop on tickets
-        let certCount = 0;
-
-        const activeDate = getActiveQuizDate();
-
-        const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score, created_at').eq('user_id', userId);
-        if (genAttempts) {
-            totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-            const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
-            // 💡 ބޯނަސް އަދަދު ބަދަލުކުރަން ބޭނުންނަމަ މިތާ އިންނަ 5 ބަދަލުކުރައްވާ (e.g., 10)
-            calculatedCoins += (passedGeneral * 5); 
-        }
-
-        const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score, created_at').eq('user_id', userId);
-        if (mathAttempts) {
-            totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
-            const passedMath = mathAttempts.filter(a => parseInt(a.score, 10) >= 3).length; 
-            // 💡 ބޯނަސް އަދަދު ބަދަލުކުރަން ބޭނުންނަމަ މިތާ އިންނަ 5 ބަދަލުކުރައްވާ (e.g., 10)
-            calculatedCoins += (passedMath * 5);
-        }
-
-        const todayGenCount = genAttempts ? genAttempts.filter(a => a.created_at === activeDate).length : 0;
-        const todayMathCount = mathAttempts ? mathAttempts.filter(a => a.created_at === activeDate).length : 0;
-
-        const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
-        if (purchaseData) {
-            spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
-            setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
-        }
-        
-        if (data.level && String(data.level).trim() !== '' && data.level !== 'N/A') {
-            calculatedCoins += 100;
-            certCount = 1; 
-        }
-
-        const currentBalance = calculatedCoins - spentCoins; // Spendable Shop Coins
-
-        const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
-        if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
-            setCelebrationBadge(BADGE_CONFIG[unlockedBadgesCount - 1]);
-        }
-        prevBadgeCountRef.current = unlockedBadgesCount; 
-
-        const enrichedData = { 
-            ...data, 
-            isMissing, 
-            total_coins: currentBalance, // Coins left for buying tickets
-            lifetime_coins: calculatedCoins, // Coins earned overall
-            quiz_total_score: totalGeneralScore,
-            math_total_score: totalMathScore,
-            quiz_attempts_today: todayGenCount,
-            math_attempts_today: todayMathCount,
-            unlocked_badges: unlockedBadgesCount, 
-            total_certificates: certCount 
-        };
-        
-        setProfileData(enrichedData);
-        
-        if (isMissing) { navigateTo('profile_setup'); } 
-        else if (view !== 'quiz' && view !== 'math_quiz') { navigateTo('dashboard'); }
-    } else {
-        setProfileData({ student_name: "", id_card: "", parent_phone: "", parent_address: "", grade: "", isMissing: true });
-        navigateTo('profile_setup');
-    }
+      const { data } = await supabase.from('lhohinoor_daily_winners').select('*').order('won_at', { ascending: false }).limit(30);
+      if (data && data.length > 0) { setMonthlyWinners(data.filter(w => w.prize && String(w.prize).includes('ގުރުއަތުން')).slice(0, 6)); }
   };
 
   const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data); };
-  
-  const fetchGifts = async () => {
-      const { data } = await supabase.from('lhohinoor_gifts').select('*').order('cost', { ascending: true });
-      if (data) setAllGifts(data);
-  };
+  const fetchGifts = async () => { const { data } = await supabase.from('lhohinoor_gifts').select('*').order('cost', { ascending: true }); if (data) setAllGifts(data); };
 
   const fetchLeaderboards = async () => {
       const activeDate = getActiveQuizDate();
       const { data: genData } = await supabase.from('lhohinoor_quiz_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).limit(10);
       setLeaderboard(genData || []);
-
       const { data: mData } = await supabase.from('lhohinoor_math_attempts').select('username, score').eq('created_at', activeDate).order('score', { ascending: false }).limit(10);
       setMathLeaderboard(mData || []);
   };
 
   const loadAdminData = async () => {
     setLoading(true);
+    fetchAppSettings();
     const { data: s } = await supabase.from('lhohinoor_students').select('*').order('student_name', { ascending: true });
     setAllStudents(s || []);
     const { data: q } = await supabase.from('lhohinoor_questions').select('*').order('quiz_date', { ascending: false });
@@ -369,6 +405,11 @@ export default function App() {
     fetchGifts();
     const { data: r } = await supabase.from('lhohinoor_partner_requests').select('*');
     setPartnerRequestsList(r || []);
+    
+    // Fetch pending claims
+    const { data: pClaims } = await supabase.from('lhohinoor_bonus_claims').select('*').eq('status', 'Pending');
+    setPendingClaims(pClaims || []);
+    
     setLoading(false);
   };
 
@@ -385,7 +426,6 @@ export default function App() {
     e.preventDefault(); setLoading(true); 
     try {
       const d = Object.fromEntries(new FormData(e.target));
-
       if (authMode === 'signup') {
           if (d.password.length < 6) { showToast('ޕާސްވޯޑްގައި މަދުވެގެން 6 އަކުރު ހުންނަންވާނެ.', 'error'); setLoading(false); return; }
           const { data: auth, error } = await supabase.auth.signUp({ email: d.email, password: d.password });
@@ -398,14 +438,8 @@ export default function App() {
           let loginEmail = d.login_identifier.trim();
           if (!loginEmail.includes('@')) loginEmail = `${loginEmail.toUpperCase()}@lhohi.mv`;
           else loginEmail = loginEmail.toLowerCase(); 
-          
           const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: d.password });
-          if (error) { 
-              showToast('އީމެއިލް/އައި.ޑީ ނުވަތަ ޕާސްވޯޑް ނުބައި.', 'error'); 
-          } else { 
-              setUser(data.user); 
-              routeUser(data.user); 
-          }
+          if (error) showToast('އީމެއިލް/އައި.ޑީ ނުވަތަ ޕާސްވޯޑް ނުބައި.', 'error'); else { setUser(data.user); routeUser(data.user); }
       } else if (authMode === 'forgot_password') {
           const { error } = await supabase.auth.resetPasswordForEmail(d.email, { redirectTo: window.location.origin });
           if (error) showToast(error.message, 'error'); else showToast('ޕާސްވޯޑް ރިސެޓް ލިންކް ފޮނުވިއްޖެ!', 'success');
@@ -420,10 +454,8 @@ export default function App() {
       e.preventDefault(); setLoading(true);
       const d = Object.fromEntries(new FormData(e.target));
       const idToProcess = d.id_card ? d.id_card.replace(/\s/g, '').toUpperCase() : profileData.id_card;
-      
       if (!validateIDCard(idToProcess)) { showToast('އައި.ޑީ ކާޑު ފޯމެޓް ނުބައި. އަކުރު A އިން ފަށާފައި ނަންބަރު ޖައްސަވާ.', 'warning'); setLoading(false); return; }
       if (!validatePhone(d.parent_phone)) { showToast('ފޯނު ނަންބަރު ރަނގަޅެއް ނޫން.', 'warning'); setLoading(false); return; }
-      
       let finalData = { id: user.id, student_name: d.student_name, parent_address: d.parent_address, parent_phone: d.parent_phone, grade: d.grade, id_card: idToProcess };
       if (profileData && profileData.level) { finalData.level = profileData.level; finalData.category = profileData.category; finalData.recitation = profileData.recitation; finalData.parent_name = profileData.parent_name; finalData.marks = profileData.marks; }
 
@@ -432,37 +464,18 @@ export default function App() {
           if (ghostRow.level) finalData.level = ghostRow.level; if (ghostRow.category) finalData.category = ghostRow.category; if (ghostRow.recitation) finalData.recitation = ghostRow.recitation; if (ghostRow.parent_name) finalData.parent_name = ghostRow.parent_name; if (ghostRow.marks) finalData.marks = ghostRow.marks;
           await supabase.from('lhohinoor_students').delete().eq('id_card', idToProcess).neq('id', user.id);
       }
-
       const { error: dbError } = await supabase.from('lhohinoor_students').upsert(finalData);
-      if (dbError) { showToast('ޕްރޮފައިލް ސޭވް ނުކުރެވުނު! ' + dbError.message, 'error'); } else { 
-          showToast('ޕްރޮފައިލް ސޭވް ކުރެވިއްޖެ!', 'success'); await fetchProfileDetails(user.id); setIsEditingProfile(false);
-      }
+      if (dbError) showToast('ޕްރޮފައިލް ސޭވް ނުކުރެވުނު! ' + dbError.message, 'error'); else { showToast('ޕްރޮފައިލް ސޭވް ކުރެވިއްޖެ!', 'success'); await fetchProfileDetails(user.id); setIsEditingProfile(false); }
       setLoading(false);
   };
 
   const handlePurchase = async (gift) => {
       if (!user || !profileData) return;
-      if (profileData.total_coins < gift.cost) {
-          showToast('މި އިނާމުގެ ޓިކެޓް ގަތުމަށް ކޮއިން މަދު!', 'error');
-          return;
-      }
-      
+      if (profileData.total_coins < gift.cost) { showToast('މި އިނާމުގެ ޓިކެޓް ގަތުމަށް ކޮއިން މަދު!', 'error'); return; }
       if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގެ ގުރުއަތު ޓިކެޓެއް ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
           setLoading(true);
-          const { error } = await supabase.from('lhohinoor_purchases').insert([{
-              user_id: user.id,
-              phone: profileData.parent_phone,
-              student_name: profileData.student_name,
-              item_id: gift.id,
-              item_name: gift.name,
-              cost: gift.cost,
-              status: 'Ticket'
-          }]);
-
-          if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
-              showToast('🎉 ޓިކެޓް ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
-              await fetchProfileDetails(user.id); 
-          }
+          const { error } = await supabase.from('lhohinoor_purchases').insert([{ user_id: user.id, phone: profileData.parent_phone, student_name: profileData.student_name, item_id: gift.id, item_name: gift.name, cost: gift.cost, status: 'Ticket' }]);
+          if (error) showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); else { showToast('🎉 ޓިކެޓް ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success'); await fetchProfileDetails(user.id); }
           setLoading(false);
       }
   };
@@ -470,52 +483,26 @@ export default function App() {
   const handlePartnerForm = async (e) => {
       e.preventDefault(); setLoading(true);
       const d = Object.fromEntries(new FormData(e.target));
-      const safePayload = { business_name: d.business_name, contact_name: d.contact_name, phone: d.phone };
-      const { error } = await supabase.from('lhohinoor_partner_requests').insert([safePayload]);
-      if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else { showToast('ފޯމު ފޮނުވިއްޖެ! ވަރަށް އަވަހަށް ގުޅާނަން.', 'success'); navigateTo('home'); }
+      const { error } = await supabase.from('lhohinoor_partner_requests').insert([{ business_name: d.business_name, contact_name: d.contact_name, phone: d.phone }]);
+      if (error) showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); else { showToast('ފޯމު ފޮނުވިއްޖެ! ވަރަށް އަވަހަށް ގުޅާނަން.', 'success'); navigateTo('home'); }
       setLoading(false);
   };
 
-  // 🔥 NEW FAIR TICKET-BASED LIVE DRAW EXECUTOR 🔥
   const executeLiveDraw = async (gift) => {
-      const { data: ticketBuyers } = await supabase.from('lhohinoor_purchases')
-                                        .select('user_id, student_name, phone')
-                                        .eq('item_id', gift.id);
-
+      const { data: ticketBuyers } = await supabase.from('lhohinoor_purchases').select('user_id, student_name, phone').eq('item_id', gift.id);
       if (!ticketBuyers || ticketBuyers.length === 0) {
-          setActiveDrawGift(gift);
-          setSpinName("ޓިކެޓް ގަތް ކުއްޖަކު ނެތް! 😔");
-          setIsSpinning(false);
-          setDrawWinnerObj(null);
-          showToast(`މި އިނާމުގެ ގުރުއަތުގައި ބައިވެރިވި ކުއްޖަކު ނެތް.`, "error");
-          return;
+          setActiveDrawGift(gift); setSpinName("ޓިކެޓް ގަތް ކުއްޖަކު ނެތް! 😔"); setIsSpinning(false); setDrawWinnerObj(null); showToast(`މި އިނާމުގެ ގުރުއަތުގައި ބައިވެރިވި ކުއްޖަކު ނެތް.`, "error"); return;
       }
-
-      setActiveDrawGift(gift);
-      setIsSpinning(true);
-      setDrawWinnerObj(null);
-
+      setActiveDrawGift(gift); setIsSpinning(true); setDrawWinnerObj(null);
       let counter = 0;
       const spinInterval = setInterval(() => {
           setSpinName(ticketBuyers[Math.floor(Math.random() * ticketBuyers.length)].student_name);
           counter++;
-          
           if (counter > 30) { 
               clearInterval(spinInterval);
               const finalWinner = ticketBuyers[Math.floor(Math.random() * ticketBuyers.length)];
-              setSpinName(finalWinner.student_name);
-              setDrawWinnerObj({ student_name: finalWinner.student_name, parent_phone: finalWinner.phone });
-              setIsSpinning(false);
-              
-              supabase.from('lhohinoor_daily_winners').insert([{ 
-                  username: finalWinner.student_name, 
-                  phone: finalWinner.phone, 
-                  score: 'Draw Winner', 
-                  prize: `🎁 ގުރުއަތުން: ${gift.name}`, 
-                  won_at: getActiveQuizDate(), 
-                  congrats_count: 0, 
-                  status: 'Pending' 
-              }]).then(() => fetchMonthlyWinners());
+              setSpinName(finalWinner.student_name); setDrawWinnerObj({ student_name: finalWinner.student_name, parent_phone: finalWinner.phone }); setIsSpinning(false);
+              supabase.from('lhohinoor_daily_winners').insert([{ username: finalWinner.student_name, phone: finalWinner.phone, score: 'Draw Winner', prize: `🎁 ގުރުއަތުން: ${gift.name}`, won_at: getActiveQuizDate(), congrats_count: 0, status: 'Pending' }]).then(() => fetchMonthlyWinners());
           }
       }, 100);
   };
@@ -523,24 +510,16 @@ export default function App() {
   const startQuiz = async () => {
     if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); navigateTo('auth'); setAuthMode('login'); return; }
     setQuizLoading(true);
-    
-    if (profileData.quiz_attempts_today >= 2) { 
-        showToast("މިއަދުގެ 2 ފުރުޞަތު ބޭނުންކޮށްފީމު! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
-        setQuizLoading(false); 
-        return; 
-    }
-
+    if (profileData.quiz_attempts_today >= 2) { showToast("މިއަދުގެ 2 ފުރުޞަތު ބޭނުންކޮށްފީމު! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); setQuizLoading(false); return; }
     const activeDate = getActiveQuizDate(); 
     const { data, error } = await supabase.from('lhohinoor_questions').select('*').eq('quiz_date', activeDate);
-    
     if (error) { showToast("System Error.", "error"); setQuizLoading(false); return; }
-    
     if (data && data.length > 0) {
       const randomFive = data.sort(() => 0.5 - Math.random()).slice(0, 5);
       setQuestions(randomFive); setScore(0); setCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setQuizState('playing'); navigateTo('quiz');
     } else { 
       const now = new Date();
-      if (now.getHours() >= 9 && now.getMinutes() >= 30) { showToast("މިއަދުގެ ސުވާލުތައް އަދި އަޕްލޯޑް ނުކުރޭ.", "warning"); } else { showToast("މިއަދުގެ ސުވާލުތައް ބަންދުވެއްޖެ. އައު ސުވާލުތައް 09:30 ގައި ލިބޭނެ.", "warning"); }
+      if (now.getHours() >= 9 && now.getMinutes() >= 30) showToast("މިއަދުގެ ސުވާލުތައް އަދި އަޕްލޯޑް ނުކުރޭ.", "warning"); else showToast("މިއަދުގެ ސުވާލުތައް ބަންދުވެއްޖެ. އައު ސުވާލުތައް 09:30 ގައި ލިބޭނެ.", "warning");
     }
     setQuizLoading(false);
   };
@@ -550,7 +529,6 @@ export default function App() {
     setSelectedOption(opt); setIsAnswered(true);
     const isCorrect = opt === questions[currentQ].correct_option;
     if (isCorrect) setScore(score + 1);
-    
     setTimeout(() => {
       if (currentQ < questions.length - 1) { setCurrentQ(currentQ + 1); setSelectedOption(null); setIsAnswered(false); } else {
         const passMark = Math.ceil(questions.length * 0.8);
@@ -563,36 +541,20 @@ export default function App() {
 
   const autoSubmitQuiz = async (finalScore) => {
     setQuizLoading(true);
-    const activeDate = getActiveQuizDate(); 
-    const { error } = await supabase.from('lhohinoor_quiz_attempts').insert([{ user_id: user.id, username: profileData.student_name, address: profileData.parent_address || "N/A", phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
-    if (!error) { 
-        await fetchLeaderboards();
-        await fetchProfileDetails(user.id); 
-        setQuizState('success'); 
-    } else { showToast("މައްސަލައެއް ދިމާވެއްޖެ: " + error.message, "error"); }
+    const { error } = await supabase.from('lhohinoor_quiz_attempts').insert([{ user_id: user.id, username: profileData.student_name, address: profileData.parent_address || "N/A", phone: profileData.parent_phone, score: finalScore, created_at: getActiveQuizDate() }]);
+    if (!error) { await fetchLeaderboards(); await fetchProfileDetails(user.id); setQuizState('success'); } else showToast("މައްސަލައެއް ދިމާވެއްޖެ.", "error");
     setQuizLoading(false);
   };
 
   const startMathQuiz = async () => {
       if (!user || !profileData || profileData.isMissing) { showToast("ކުޅުމަށް ފުރަތަމަ ލޮގިންކޮށް ޕްރޮފައިލް ފުރިހަމަކުރައްވާ!", "warning"); return; }
       setQuizLoading(true);
-      
-      if (profileData.math_attempts_today >= 5) { 
-          showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); 
-          setQuizLoading(false); return; 
-      }
-
+      if (profileData.math_attempts_today >= 5) { showToast("މިއަދުގެ 5 ފުރުޞަތު ހަމަވެއްޖެ! މާދަމާ އަލުން މަސައްކަތްކުރައްވާ.", "warning"); setQuizLoading(false); return; }
       const { data: qData, error: qErr } = await supabase.from('lhohinoor_math_questions').select('*').eq('grade', profileData.grade);
-      
-      if (qErr) { showToast("Database Error. Tables not found.", "error"); setQuizLoading(false); return; }
-      if (!qData || qData.length < 1) {
-          showToast("މި ގްރޭޑަށް އަދި ސުވާލުތައް އަޕްލޯޑްކޮށްފައެއް ނުވޭ.", "warning");
-          setQuizLoading(false); return;
-      }
-
+      if (qErr) { showToast("Database Error.", "error"); setQuizLoading(false); return; }
+      if (!qData || qData.length < 1) { showToast("މި ގްރޭޑަށް އަދި ސުވާލުތައް އަޕްލޯޑްކޮށްފައެއް ނުވޭ.", "warning"); setQuizLoading(false); return; }
       const randomFive = qData.sort(() => 0.5 - Math.random()).slice(0, 5);
-      setMathQuestions(randomFive); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); 
-      setMathState('playing'); navigateTo('math_quiz');
+      setMathQuestions(randomFive); setMathScore(0); setMathCurrentQ(0); setSelectedOption(null); setIsAnswered(false); setMathState('playing'); navigateTo('math_quiz');
       setQuizLoading(false);
   };
 
@@ -601,36 +563,22 @@ export default function App() {
       setSelectedOption(opt); setIsAnswered(true);
       const isCorrect = opt === mathQuestions[mathCurrentQ].correct_option;
       if (isCorrect) setMathScore(mathScore + 1);
-
       setTimeout(() => {
-          if (mathCurrentQ < mathQuestions.length - 1) {
-              setMathCurrentQ(mathCurrentQ + 1); setSelectedOption(null); setIsAnswered(false);
-          } else {
+          if (mathCurrentQ < mathQuestions.length - 1) { setMathCurrentQ(mathCurrentQ + 1); setSelectedOption(null); setIsAnswered(false); } else {
               const finalScore = isCorrect ? mathScore + 1 : mathScore;
-              setMathScore(finalScore);
-              setMathState('result');
-              if (finalScore >= 3) {
-                  setTimeout(() => autoSubmitMath(finalScore), 2500);
-              } else {
-                  autoSubmitMathBackground(finalScore); 
-              }
+              setMathScore(finalScore); setMathState('result');
+              if (finalScore >= 3) setTimeout(() => autoSubmitMath(finalScore), 2500); else autoSubmitMathBackground(finalScore); 
           }
       }, 1000);
   };
 
   const autoSubmitMath = async (finalScore) => {
-      const activeDate = getActiveQuizDate();
-      await supabase.from('lhohinoor_math_attempts').insert([{ user_id: user.id, username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
-      await fetchLeaderboards();
-      await fetchProfileDetails(user.id); 
-      setMathState('success');
+      await supabase.from('lhohinoor_math_attempts').insert([{ user_id: user.id, username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: getActiveQuizDate() }]);
+      await fetchLeaderboards(); await fetchProfileDetails(user.id); setMathState('success');
   };
-
   const autoSubmitMathBackground = async (finalScore) => {
-      const activeDate = getActiveQuizDate();
-      await supabase.from('lhohinoor_math_attempts').insert([{ user_id: user.id, username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: activeDate }]);
-      await fetchLeaderboards();
-      await fetchProfileDetails(user.id); 
+      await supabase.from('lhohinoor_math_attempts').insert([{ user_id: user.id, username: profileData.student_name, phone: profileData.parent_phone, score: finalScore, created_at: getActiveQuizDate() }]);
+      await fetchLeaderboards(); await fetchProfileDetails(user.id); 
   };
 
   const getButtonColor = (opt, questionsArray, currentIndex) => {
@@ -653,14 +601,8 @@ export default function App() {
     <div style={styles.appContainer}>
       <style>
         {`
-        @font-face { 
-            font-family: 'Faruma'; 
-            src: local('Faruma'), url('/faruma.ttf') format('truetype'), url('/Faruma.ttf') format('truetype'); 
-            font-display: swap; 
-        }
-        body, html, #root, div, span, h1, h2, h3, h4, p, a, button, input, select, textarea, table, th, td {
-            font-family: 'Faruma', Arial, sans-serif !important;
-        }
+        @font-face { font-family: 'Faruma'; src: local('Faruma'), url('/faruma.ttf') format('truetype'), url('/Faruma.ttf') format('truetype'); font-display: swap; }
+        body, html, #root, div, span, h1, h2, h3, h4, p, a, button, input, select, textarea, table, th, td { font-family: 'Faruma', Arial, sans-serif !important; }
         .ltr-text, .ltr-text * { font-family: Arial, sans-serif !important; }
 
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -669,14 +611,9 @@ export default function App() {
         @keyframes spinSlow { 100% { transform: rotate(360deg); } }
         @keyframes badgePop { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
         @keyframes pulseText { 0% { transform: scale(1); } 50% { transform: scale(1.05); color: #d32f2f; } 100% { transform: scale(1); } }
+        @keyframes floatHeart { 0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 20% { transform: translate(calc(var(--tx) * 0.3px), -20px) scale(1.2); opacity: 1; } 100% { transform: translate(calc(var(--tx) * 1px), -120px) scale(1); opacity: 0; } }
         
-        @keyframes floatHeart { 
-            0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 
-            20% { transform: translate(calc(var(--tx) * 0.3px), -20px) scale(1.2); opacity: 1; } 
-            100% { transform: translate(calc(var(--tx) * 1px), -120px) scale(1); opacity: 0; } 
-        }
         .floating-heart { position: absolute; bottom: 70px; font-size: 28px; animation: floatHeart 1.5s ease-out forwards; pointer-events: none; z-index: 15; filter: drop-shadow(0px 4px 6px rgba(211,47,47,0.4)); opacity: 0; }
-        
         .app-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; background: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; animation: slideDown 0.3s ease-out forwards; border-left: 5px solid; font-weight: bold; width: 90%; max-width: 400px; text-align: right; direction: rtl; }
         .app-toast.error { border-color: #f44336; color: #d32f2f; }
         .app-toast.success { border-color: #4caf50; color: #2e7d32; }
@@ -688,7 +625,6 @@ export default function App() {
 
         .brand-logo { font-size: 32px; font-weight: 900; color: #0056b3; }
         .brand-logo span { color: #fbc02d; }
-
         .animate-card { animation: fadeInUp 0.8s ease-out; }
         .winner-card { background: linear-gradient(135deg, #fff3e0 0%, #ffffff 100%); border: 2px solid #ffd700; border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3); margin-bottom: 20px; position: relative; animation: popIn 0.6s ease-out; max-width: 400px; margin-left: auto; margin-right: auto; overflow: hidden; }
         .close-btn { position: absolute; top: 10px; right: 10px; background: #ff5252; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 14px; line-height: 28px; text-align: center; padding: 0; z-index: 10; }
@@ -744,7 +680,6 @@ export default function App() {
         .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
         
-        /* 🔥 RESPONSIVE LIVE DRAW STYLES 🔥 */
         .live-draw-container { text-align: center; color: white; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow-y: auto; overflow-x: hidden; }
         .spinner-box { background: white; color: #333; padding: 25px 15px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 95%; max-width: 600px; z-index: 2; position: relative; box-sizing: border-box; margin: auto; }
         .spin-name { font-size: clamp(26px, 7vw, 60px); font-weight: bold; margin: 20px 0; color: #d32f2f; line-height: 1.3; word-break: break-word; padding: 0 10px; }
@@ -802,7 +737,6 @@ export default function App() {
               {!isSpinning && !drawWinnerObj && (
                   <>
                       <h1 style={{fontSize: 'clamp(30px, 5vw, 40px)', color: '#ffd700', textShadow: '2px 2px 10px rgba(0,0,0,0.5)', marginBottom: '40px'}}>🎁 މަހުގެ ބޮޑު ގުރުއަތުލުން 🎁</h1>
-                      
                       <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1000px'}}>
                           {allGifts.map(gift => (
                               <div key={gift.id} style={{background: 'rgba(255,255,255,0.1)', padding: '20px', borderRadius: '15px', border: '2px solid rgba(255,215,0,0.3)', width: '200px'}}>
@@ -812,7 +746,6 @@ export default function App() {
                               </div>
                           ))}
                       </div>
-                      
                       <button onClick={() => navigateTo('admin')} style={{...styles.btnSecondary, marginTop: '50px', background: 'transparent', border: '1px solid white', width: 'auto'}}>← އެޑްމިން ޕެނަލްއަށް</button>
                   </>
               )}
@@ -878,7 +811,6 @@ export default function App() {
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
                 <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
-                
                 <div className="gift-grid">
                     {allGifts.map(gift => (
                         <div key={gift.id} className="gift-card">
@@ -912,7 +844,6 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 NEW INFO PAGE EXPLAINING THE TICKET RULES 🔥 */}
       {view === 'info' && (
         <div style={styles.centeredContainer}>
           <div style={{...styles.quizCard, maxWidth: '700px'}} className="animate-card">
@@ -923,35 +854,23 @@ export default function App() {
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
                       <li>ކުއިޒް ކުޅެގެން ކޮއިން ހޯދުމަށް ފުރަތަމަ ޖެހޭނީ އީމެއިލް ބޭނުންކޮށްގެން އެކައުންޓެއް ހަދާށެވެ.</li>
                       <li>އެކައުންޓް ހެދުމަށްފަހު، <b>"ޕްރޮފައިލް"</b> ގައި ދަރިވަރުގެ ފުރިހަމަ ނަން، އައި.ޑީ ކާޑު، ގްރޭޑް އަދި ފޯނު ނަންބަރު ރަނގަޅަށް ފުރިހަމަކުރަންވާނެއެވެ.</li>
-                      <li>ކޮންމެ ދަރިވަރަކަށްވެސް ހެދޭނީ އެންމެ އެކައުންޓެކެވެ.</li>
                   </ul>
               </div>
 
               <div className="info-section" style={{background: '#e8f5e9', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #2e7d32'}}>
                   <div className="info-title" style={{color: '#2e7d32', fontSize: '18px', marginBottom: '10px'}}>🪙 2. ކޮއިން ހޯދާނީ ކިހިނެއް؟</div>
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
-                      <li><b>ދުވަހުގެ ކުއިޒް:</b> ކޮންމެ ދުވަހަކު 5 ސުވާލު. %80 އިން ފާސްވުމުން <b>5 ކޮއިން</b> ލިބޭނެއެވެ. ދުވާލަކު 2 ފަހަރު ކުޅެވޭނެއެވެ.</li>
-                      <li><b>ސުވާލު ކީސާ:</b> ގްރޭޑާ ގުޅޭ 5 ސުވާލު. 3 ސުވާލަށް ރަނގަޅަށް ޖަވާބު ދިނުމުން <b>5 ކޮއިން</b> ލިބޭނެއެވެ. ދުވާލަކު 5 ފަހަރު ކުޅެވޭނެއެވެ.</li>
-                      <li><b>ބޯނަސް ކޮއިން:</b> ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގައި ބައިވެރިވި ކޮންމެ ކުއްޖަކަށް ހިތްވަރު ދިނުމުގެ ގޮތުން <b>100 ކޮއިން</b> ގެ ބޯނަސްއެއް ލިބޭނެއެވެ!</li>
+                      <li><b>ދުވަހުގެ ކުއިޒް:</b> %80 އިން ފާސްވުމުން <b>5 ކޮއިން</b>. ދުވާލަކު 2 ފަހަރު.</li>
+                      <li><b>ސުވާލު ކީސާ:</b> 3 ސުވާލަށް ޖަވާބު ދިނުމުން <b>5 ކޮއިން</b>. ދުވާލަކު 5 ފަހަރު.</li>
+                      <li><b>ބޯނަސް ހަބް:</b> ކޮންމެ ދުވަހަކު ބޯނަސް ހަބް އިން ޓާސްކްތައް (މިސާލަކަށް: ރީޑް އެންޑް އާރން) ފުރިހަމަކޮށްގެން ހިލޭ ކޮއިން ހޯދޭނެއެވެ.</li>
                   </ul>
               </div>
 
               <div className="info-section" style={{background: '#fff3e0', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #ff9800'}}>
                   <div className="info-title" style={{color: '#e65100', fontSize: '18px', marginBottom: '10px'}}>🎁 3. އިނާމު ފިހާރަ އަދި ޓިކެޓް ގަތުން</div>
-                  <p style={{fontSize: '13px', color: '#d84315', marginBottom: '10px'}}>ކޮއިން ބޭނުންކުރާނީ އިނާމު ފިހާރައިން "ގުރުއަތު ޓިކެޓް" ގަތުމަށެވެ!</p>
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
                       <li>ބޭނުންވާ އިނާމެއްގެ ގުރުއަތުގައި ބައިވެރިވުމަށް، އެ އިނާމެއްގެ އަގަށްވާ ވަރަށް ކޮއިން ދީފައި <b>ޓިކެޓެއް</b> ގަންނަން ޖެހޭނެއެވެ.</li>
-                      <li>ޓިކެޓް ގަތުމުން އެވަރަކަށް ކޮއިން ބެލެންސް އިން ކެނޑޭނެއެވެ.</li>
-                      <li><b>ޗާންސް ބޮޑުކުރުން:</b> ކޮއިން ހުރިވަރަކުން އެއް އިނާމެއްގެ ގިނަ ޓިކެޓްވެސް ގަނެވިދާނެއެވެ. ގިނަ ޓިކެޓް ގަތް ވަރަކަށް ލައިވް ޑްރޯއިން އެ އިނާމެއް ލިބުމުގެ ފުރުޞަތު ބޮޑުވާނެއެވެ!</li>
-                  </ul>
-              </div>
-
-              <div className="info-section" style={{background: '#f9f9f9', padding: '15px', borderRadius: '10px', borderLeft: '4px solid #9e9e9e'}}>
-                  <div className="info-title" style={{color: '#616161', fontSize: '18px', marginBottom: '10px'}}>📜 4. އާންމު ޤަވާއިދުތައް</div>
-                  <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
-                      <li>އާ ސުވާލުތައް ފެންނާނީ ކޮންމެ ދުވަހެއްގެ ހެނދުނު 09:30 ގެ ފަހުންނެވެ.</li>
-                      <li>މި ޕްރޮގްރާމްތަކުގެ އިނާމު ލިބޭނީ ޅޮހީގެ ރައްޔިތުންނާއި ޅޮހީގައި ދިރިއުޅޭ ފަރާތްތަކަށެވެ. (ނަމަވެސް ރާއްޖޭގެ ކޮންމެ މީހަކަށްވެސް ކުއިޒްގައި ބައިވެރިވެވޭނެއެވެ).</li>
-                      <li>ބޮޑު ގުރުއަތުލުން ކުރިއަށް ދާނީ ލައިވްކޮށެވެ. ގުރުއަތު އެނބުރޭނީ ހަމައެކަނި އެ އިނާމެއްގެ ޓިކެޓް ގަތް ކުދިންގެ މެދުގައެވެ.</li>
+                      <li><b>ޗާންސް ބޮޑުކުރުން:</b> ކޮއިން ހުރިވަރަކުން އެއް އިނާމެއްގެ ގިނަ ޓިކެޓްވެސް ގަނެވިދާނެއެވެ. ގިނަ ޓިކެޓް ގަތް ވަރަކަށް އެ އިނާމެއް ލިބުމުގެ ފުރުޞަތު ބޮޑުވާނެއެވެ!</li>
                   </ul>
               </div>
 
@@ -971,26 +890,16 @@ export default function App() {
               
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '10px 0' }}>
                   <h2 style={{color:'#2e7d32', margin: 0, fontSize: '24px'}}>{dailyWinner.username}</h2>
-                  <div 
-                      className={`heart-badge ${hasCongratulated ? 'clicked' : ''}`} 
-                      onClick={handleCongratulate}
-                      title="Congratulate!"
-                  >
+                  <div className={`heart-badge ${hasCongratulated ? 'clicked' : ''}`} onClick={handleCongratulate} title="Congratulate!">
                       ❤️ <span className="heart-count-number">{dailyWinner.congrats_count || 0}</span>
                   </div>
               </div>
-              
               <p style={{fontSize:'14px', margin:'10px 0', fontWeight: 'bold'}}>{dailyWinner.prize}</p>
               
-              <button 
-                  onClick={handleShareWinner} 
-                  style={{...styles.btn, background: 'linear-gradient(135deg, #1976d2, #0056b3)', padding: '8px 15px', borderRadius: '25px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '10px'}}
-              >
+              <button onClick={handleShareWinner} style={{...styles.btn, background: 'linear-gradient(135deg, #1976d2, #0056b3)', padding: '8px 15px', borderRadius: '25px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '10px'}}>
                   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                   ޝެއަރ ކުރައްވާ
               </button>
-
-              <p style={{fontSize:'12px', color:'#777', marginTop:'15px', borderTop:'1px dashed #eee', paddingTop:'10px'}}>އިނާމު ނެގުމަށް އޮފީހަށް ވަޑައިގަންނަވާ!</p>
             </div>
           ) : null}
 
@@ -1011,13 +920,9 @@ export default function App() {
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
                 <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
-                
                 <div className="marquee-wrapper">
-                    <div className="marquee-content">
-                         ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 7 އަދި 8 ގައެވެ. 
-                    </div>
+                    <div className="marquee-content">ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 7 އަދި 8 ގައެވެ.</div>
                 </div>
-
                 <h3>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
                 <p>ބޭނުންވަރަކަށް ފަރިތަކުރައްވާ. ޖަވާބު ފޮނުވޭނީ އެއްފަހަރު.</p>
                 <button style={styles.btn} onClick={() => { resetQuiz(); navigateTo('quiz'); }}>ފަށަމާ</button>
@@ -1035,11 +940,8 @@ export default function App() {
               <h3 style={{color:'#2e7d32'}}> ބައިވެރިން</h3>
               <div style={styles.sponsorGrid}>{allPartners.length > 0 ? allPartners.map(p => (<div key={p.id} style={{textAlign:'center'}}>{p.logo_url ? <img src={p.logo_url} style={styles.sponsorImg} alt={p.name} loading="lazy"/> : <span style={{fontWeight:'bold', color:'#555'}}>{p.name}</span>}</div>)) : <p>ބައިވެރިންގެ މަޢުލޫމާތު ލޯޑުކުރަނީ...</p>}</div>
               <p onClick={() => navigateTo('partner_form')} style={styles.simpleLink}>ބައިވެރިއަކަށް ވެލައްވާ</p>
-              
               <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #eee', fontSize: '11px', color: '#888', lineHeight: '1.4' }}>
-                 <p style={{ margin: '0 0 3px 0', color: '#2e7d32', fontWeight: 'bold' }}>
-                    © {new Date().getFullYear()} ޅޮހިނޫރު - LhohiNoor
-                 </p>
+                 <p style={{ margin: '0 0 3px 0', color: '#2e7d32', fontWeight: 'bold' }}>© {new Date().getFullYear()} ޅޮހިނޫރު - LhohiNoor</p>
                  <p style={{ margin: '0 0 3px 0' }}>The Secretariat of the Lhohi Council</p>
                  <p style={{ margin: 0, fontSize: '9px', fontFamily: 'sans-serif', letterSpacing: '0.5px' }}>ALL RIGHTS RESERVED</p>
               </div>
@@ -1050,14 +952,11 @@ export default function App() {
       {view === 'auth' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quranCard}>
-            
             <BrandLogo /> 
-
             <div style={styles.tabs}>
                 <button onClick={() => {setAuthMode('signup');}} style={{...styles.tab, borderBottom: authMode==='signup'?'3px solid #0056b3':'none'}}>އެކައުންޓް ހެދުން</button>
                 <button onClick={() => {setAuthMode('login');}} style={{...styles.tab, borderBottom: authMode==='login'?'3px solid #0056b3':'none'}}>ލޮގިން</button>
             </div>
-
             <form onSubmit={handleAuth} style={styles.form}>
               {authMode === 'login' && (
                 <>
@@ -1093,30 +992,22 @@ export default function App() {
       {view === 'profile_setup' && profileData && (
           <div style={styles.centeredContainer}>
               <div style={styles.quranCard} className="animate-card">
-                  
                   <BrandLogo />
-
                   <h2 style={{color: '#d32f2f', textAlign: 'center', marginTop: 0}}>މަރުޙަބާ! ޕްރޮފައިލް ފުރިހަމަކުރައްވާ</h2>
-                  
                   <div style={{background: '#fff3cd', padding: '12px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #ffeeba', textAlign: 'center', color: '#856404', lineHeight: '1.4'}}>
                       <span style={{fontSize: '12px'}}>ތިޔަ ލޮގިންވެފައިވަނީ:</span><br/>
                       <b className="ltr-text" style={{fontSize: '14px', color: '#0056b3'}}>{user?.email}</b><br/>
                       <span style={{fontSize: '11px'}}>(ކުރިން ބޭނުންކުރެއްވި އައި.ޑީ ނުވަތަ އީމެއިލް ނޫންނަމަ، ތިރީގައިވާ ލޮގްއައުޓް އަށް ފިތާލައްވާ)</span>
                   </div>
-                  
                   <form onSubmit={handleUpdateProfile} style={styles.form}>
                         <label style={{textAlign: 'left', fontSize: '12px', color: '#666', marginBottom: '-8px'}}>ފުރިހަމަ ނަން (Full Name)</label>
                         <input name="student_name" defaultValue={profileData.student_name} placeholder="ފުރިހަމަ ނަން" style={styles.input} required />
-                        
                         <label style={{textAlign: 'left', fontSize: '12px', color: '#666', marginBottom: '-8px'}}>އައި.ޑީ ކާޑު ނަންބަރު (ID Card)</label>
                         <input name="id_card" defaultValue={profileData.id_card} placeholder="A123456" style={styles.inputLtr} required />
-                        
                         <label style={{textAlign: 'left', fontSize: '12px', color: '#666', marginBottom: '-8px'}}>އެޑްރެސް (Address)</label>
                         <input name="parent_address" defaultValue={profileData.parent_address} placeholder="އެޑްރެސް" style={styles.input} required />
-                        
                         <label style={{textAlign: 'left', fontSize: '12px', color: '#666', marginBottom: '-8px'}}>ފޯނު ނަންބަރު (Phone)</label>
                         <input name="parent_phone" defaultValue={profileData.parent_phone} placeholder="7xxxxxx" type="tel" maxLength="7" onChange={handlePhoneInput} style={styles.inputLtr} required />
-                        
                         <label style={{textAlign: 'left', fontSize: '12px', color: '#666', marginBottom: '-8px'}}>ގްރޭޑް / އުމުރު (Grade / Age)</label>
                         <select name="grade" defaultValue={profileData.grade} style={styles.input} required>
                             <option value="">ގްރޭޑް / އުމުރު ޚިޔާރުކުރައްވާ</option>
@@ -1125,16 +1016,14 @@ export default function App() {
                             <option value="17+">17 އަހަރުން މަތި</option>
                             <option value="45+">45 އަހަރުން މަތި</option>
                         </select>
-
                         <button type="submit" disabled={loading} style={{...styles.btn, background:'green', marginTop: '10px'}}>{loading ? 'ސޭވްކުރަނީ...' : 'ސޭވްކޮށްފައި ކުރިއަށްދޭ'}</button>
-                        
                         <button type="button" onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336'}}>އެހެން އެކައުންޓަކުން ވަނުމަށް (ލޮގްއައުޓް)</button>
                   </form>
               </div>
           </div>
       )}
 
-      {/* 🚀 NEW GAMIFIED STUDENT HUB (DASHBOARD) 🚀 */}
+      {/* 🚀 GAMIFIED DASHBOARD 🚀 */}
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
@@ -1164,67 +1053,44 @@ export default function App() {
                 <div className="dash-stat" onClick={() => navigateTo('dashboard', 'certificates')} style={{cursor: 'pointer'}} title="ސެޓްފިކެޓް ބައްލަވާ">
                     <svg width="24" height="24" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <h3 className="ltr-text">{profileData.total_certificates || 0}</h3>
-                    <p>ސެޓްފިކެޓް (ބައްލަވާ)</p>
+                    <p>ސެޓްފިކެޓް</p>
                 </div>
             </div>
 
             {dashView === 'overview' && (
                 <div className="dash-menu-grid animate-card">
-                    
                     {isEnrolledInQuran && (
                         <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
                             <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
-                            <div>
-                                <p className="dash-menu-title" style={{color: '#333'}}>މަގޭ ޤުރުއާން ސްލިޕް (VIP)</p>
-                                <p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p>
-                            </div>
+                            <div><p className="dash-menu-title" style={{color: '#333'}}>މަގޭ ޤުރުއާން ސްލިޕް (VIP)</p><p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p></div>
                         </div>
                     )}
-
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'profile')}>
-                        <div className="dash-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        </div>
+                        <div className="dash-icon"><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></div>
                         <div><p className="dash-menu-title">މަގޭ ޕްރޮފައިލް</p><p className="dash-menu-sub">މަޢުލޫމާތު ބަދަލުކުރުމަށް</p></div>
                     </div>
-                    
                     <div className="dash-menu-btn" onClick={() => { fetchLeaderboards(); navigateTo('dashboard', 'progress'); }}>
-                        <div className="dash-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                        </div>
+                        <div className="dash-icon"><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg></div>
                         <div><p className="dash-menu-title">މަގޭ ނަތީޖާ އާއި ކާމިޔާބީ</p><p className="dash-menu-sub">ލީޑަރބޯޑް، ބެޖް އަދި ސެޓްފިކެޓް</p></div>
                     </div>
-
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'programs')}>
-                        <div className="dash-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                        </div>
+                        <div className="dash-icon"><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg></div>
                         <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ސުވާލު ކީސާ</p></div>
                     </div>
-
-                    {/* 🔥 NEW BONUS COIN HUB BUTTON 🔥 */}
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'bonus_hub')} style={{borderColor: '#4caf50'}}>
-                        <div className="dash-icon" style={{color: '#4caf50', background: '#e8f5e9'}}>
-                            <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                        </div>
-                        <div>
-                            <p className="dash-menu-title" style={{color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން</p>
-                            <p className="dash-menu-sub">އެހެނިހެން ޓާސްކްތައް ފުރިހަމަކޮށް ކޮއިން ހޯދާ!</p>
-                        </div>
+                        <div className="dash-icon" style={{color: '#4caf50', background: '#e8f5e9'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
+                        <div><p className="dash-menu-title" style={{color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން</p><p className="dash-menu-sub">އެހެނިހެން ޓާސްކްތައް ފުރިހަމަކޮށް ކޮއިން ހޯދާ!</p></div>
                     </div>
-                    
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'gift_shop')} style={{borderColor: '#ff9800'}}>
-                        <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}>
-                            <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>
-                        </div>
+                        <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg></div>
                         <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ (ގުރުއަތު ޓިކެޓް)</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން ގުރުއަތު ޓިކެޓް ގަންނަވާ!</p></div>
                     </div>
                 </div>
             )}
 
-            {/* ✨ NEW VIEW: BONUS COINS HUB ✨ */}
+            {/* ✨ FULLY FUNCTIONAL BONUS HUB ✨ */}
             {dashView === 'bonus_hub' && (
                 <div style={{...styles.card, background: '#f4fbf5'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #c8e6c9', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1232,51 +1098,65 @@ export default function App() {
                         <h3 style={{margin: 0, color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން ހަބް</h3>
                     </div>
 
-                    {/* 🔥 1. STREAK BONUS 🔥 */}
+                    {/* 🔥 STREAK 🔥 */}
                     <div className="program-card" style={{background: 'linear-gradient(135deg, #ff9a9e 0%, #ffcdd2 100%)', borderColor: '#ef5350', marginBottom: '15px', color: '#b71c1c'}}>
-                        <h3 style={{margin: '0 0 5px 0', fontSize: '24px'}}>🔥 މަގޭ ސްޓްރީކް: <span className="ltr-text">3</span> ދުވަސް</h3>
-                        <p style={{fontSize: '12px', margin: '0 0 10px 0'}}>ވިދިވިދިގެން 7 ދުވަހު ކުއިޒް ކުޅެފިނަމަ ބޮޑު ބޯނަސް އެއް ލިބޭނެ!</p>
-                        <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '10px'}}>
-                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-                                <div key={i} style={{width: '25px', height: '25px', borderRadius: '50%', background: i < 3 ? '#e53935' : 'white', color: i < 3 ? 'white' : '#999', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold'}}>{day}</div>
-                            ))}
-                        </div>
+                        <h3 style={{margin: '0 0 5px 0', fontSize: '24px'}}>🔥 މަގޭ ސްޓްރީކް: <span className="ltr-text">{profileData.current_streak || 0}</span> ދުވަސް</h3>
+                        <p style={{fontSize: '12px', margin: '0 0 10px 0'}}>ވިދިވިދިގެން ކޮންމެ ދުވަހަކު ކުއިޒް ކުޅޭނަމަ ސްޓްރީކް އިތުރުވާނެއެވެ!</p>
                     </div>
 
-                    {/* 📚 2. READ & EARN */}
+                    {/* 📚 READ & EARN */}
                     <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
                         <h4 style={{color: '#1976d2', margin: '0 0 10px 0'}}>📚 ކިޔާލާފައި ހޯދާ (Read & Earn)</h4>
                         <div style={{background: '#f5f5f5', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #1976d2'}}>
-                            <h5 style={{margin: '0 0 5px 0'}}>މިއަދުގެ ޙަދީޘް</h5>
-                            <p style={{fontSize: '13px', color: '#555', lineHeight: '1.6'}}>ރަސޫލާ (ޞ) ޙަދީޘް ކުރެއްވިއެވެ: "ތިޔަބައިމީހުންގެ ތެރެއިން އެންމެ ހެޔޮކަން ބޮޑުވެގެންވާ މީހަކީ، ޤުރުއާން އުނގެނި އަދި އެހެންމީހުންނަށް އެ އުނގަންނައިދޭ މީހާއެވެ." (ބުޚާރީ)</p>
-                            <button onClick={() => showToast('🎉 10 ކޮއިން ލިބިއްޖެ!', 'success')} style={{...styles.btn, background: '#1976d2', padding: '8px', fontSize: '13px', marginTop: '10px'}}>ކިޔައިފިން (+10 🪙)</button>
+                            <p style={{fontSize: '14px', color: '#333', lineHeight: '1.6'}}>{appSettings.read_text}</p>
+                            <button 
+                                onClick={() => handleBonusClaim('read', appSettings.read_coins)} 
+                                disabled={todayClaims.some(c => c.task_type === 'read')}
+                                style={{...styles.btn, background: todayClaims.some(c => c.task_type === 'read') ? '#ccc' : '#1976d2', padding: '8px', fontSize: '13px', marginTop: '10px'}}
+                            >
+                                {todayClaims.some(c => c.task_type === 'read') ? '✅ މިއަދުގެ ބޯނަސް ނަގައިފިން' : `ކިޔައިފިން (+${appSettings.read_coins} 🪙)`}
+                            </button>
                         </div>
                     </div>
 
-                    {/* 🧩 3. MINI PUZZLE */}
-                    <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
-                        <h4 style={{color: '#e65100', margin: '0 0 10px 0'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h4>
-                        <div style={{background: '#fff3e0', padding: '15px', borderRadius: '8px', border: '1px dashed #ffb74d'}}>
-                            <p style={{margin: '0 0 10px 0', fontSize: '14px', fontWeight: 'bold'}}>މިއީ ޅޮހީގެ ކޮން ތަނެއް؟</p>
-                            <div style={{width: '100%', height: '120px', background: '#ccc', borderRadius: '8px', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666'}}>
-                                [ރަށުގެ ތަނެއްގެ ފޮޓޯއެއް]
+                    {/* 🧩 MINI PUZZLE */}
+                    {appSettings.puzzle_image_url && (
+                        <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
+                            <h4 style={{color: '#e65100', margin: '0 0 10px 0'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h4>
+                            <div style={{background: '#fff3e0', padding: '15px', borderRadius: '8px', border: '1px dashed #ffb74d'}}>
+                                <img src={appSettings.puzzle_image_url} alt="Puzzle" style={{width: '100%', borderRadius: '8px', marginBottom: '10px', maxHeight: '200px', objectFit: 'contain', background: '#fff'}} />
+                                
+                                {todayClaims.some(c => c.task_type === 'puzzle') ? (
+                                    <div style={{padding: '10px', background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold'}}>✅ ޖަވާބު ދިމާކޮށްފިން!</div>
+                                ) : (
+                                    <>
+                                        <input value={puzzleInput} onChange={(e) => setPuzzleInput(e.target.value)} placeholder="ޖަވާބު ލިޔުއްވާ..." style={{...styles.input, marginBottom: '10px', fontSize: '13px'}} />
+                                        <button onClick={submitPuzzle} style={{...styles.btn, background: '#ff9800', padding: '8px', fontSize: '13px'}}>ޖަވާބު ފޮނުވާ (+{appSettings.puzzle_coins} 🪙)</button>
+                                    </>
+                                )}
                             </div>
-                            <input placeholder="ޖަވާބު ލިޔުއްވާ..." style={{...styles.input, marginBottom: '10px', fontSize: '13px'}} />
-                            <button onClick={() => showToast('ޖަވާބު ފޮނުވިއްޖެ! ރަނގަޅުނަމަ 30 ކޮއިން ލިބޭނެ.', 'success')} style={{...styles.btn, background: '#ff9800', padding: '8px', fontSize: '13px'}}>ޖަވާބު ފޮނުވާ (+30 🪙)</button>
                         </div>
-                    </div>
+                    )}
 
-                    {/* 🌟 4. GOOD BEHAVIOR (GOOD DEEDS) */}
+                    {/* 🌟 GOOD BEHAVIOR */}
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: 'white'}}>
                         <h4 style={{color: '#8e24aa', margin: '0 0 10px 0'}}>🌟 އަޚްލާޤީ ތަރި (Good Deeds)</h4>
-                        <p style={{fontSize: '12px', color: '#666', marginBottom: '10px'}}>މިއަދު ކުރެވުނު ރަނގަޅު ކަމެއް ހުށަހަޅާށެވެ.</p>
-                        <select style={{...styles.input, marginBottom: '10px', fontSize: '13px'}}>
-                            <option>ޖަމާޢަތުގައި ނަމާދުކުރުން</option>
-                            <option>މަންމަ/ބައްޕައަށް ގޭތެރޭގައި އެހީވުން</option>
-                            <option>މިސްކިތް ސާފުކުރުން</option>
-                            <option>ޤުރުއާން ކިޔެވުން</option>
-                        </select>
-                        <button onClick={() => showToast('ހުށަހެޅިއްޖެ! އެޕްރޫވް ވުމުން 20 ކޮއިން ލިބޭނެ.', 'success')} style={{...styles.btn, background: '#8e24aa', padding: '8px', fontSize: '13px'}}>ހުށަހަޅާ (+20 🪙)</button>
+                        <p style={{fontSize: '12px', color: '#666', marginBottom: '10px'}}>މިއަދު ކުރެވުނު ރަނގަޅު ކަމެއް ހުށަހަޅާށެވެ (ދުވާލަކު އެއްފަހަރު).</p>
+                        
+                        {todayClaims.some(c => c.task_type.startsWith('behavior')) ? (
+                            <div style={{padding: '10px', background: '#f3e5f5', color: '#4a148c', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '12px'}}>މިއަދުގެ ރިކުއެސްޓް ވަނީ ފޮނުވިފައި. (އެޕްރޫވް ވުމުން ކޮއިން ލިބޭނެ)</div>
+                        ) : (
+                            <>
+                                <select value={behaviorInput} onChange={(e) => setBehaviorInput(e.target.value)} style={{...styles.input, marginBottom: '10px', fontSize: '13px'}}>
+                                    <option>ޖަމާޢަތުގައި ނަމާދުކުރުން</option>
+                                    <option>މަންމަ/ބައްޕައަށް ގޭތެރޭގައި އެހީވުން</option>
+                                    <option>މިސްކިތް ސާފުކުރުން</option>
+                                    <option>ޤުރުއާން ކިޔެވުން</option>
+                                    <option>މަގުމަތިން ކުނި ނެގުން</option>
+                                </select>
+                                <button onClick={() => handleBonusClaim('behavior', 20, behaviorInput)} style={{...styles.btn, background: '#8e24aa', padding: '8px', fontSize: '13px'}}>ހުށަހަޅާ (+20 🪙)</button>
+                            </>
+                        )}
                     </div>
 
                 </div>
@@ -1299,16 +1179,13 @@ export default function App() {
                                     މި ސެޓްފިކެޓް ދީފައިވަނީ <b>ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގައި</b> ބައިވެރިވިކަމުގެ އަގުވަޒަންކުރުމުގެ ގޮތުންނާއި، 
                                     މުބާރާތުގައި ދެއްކެވި ފަރުވާތެރިކަމަށްޓަކައި ހިތްވަރު ދިނުމުގެ ގޮތުންނެވެ.
                                 </div>
-                                <div className="cert-bonus">
-                                    🎉 ބޯނަސް އިނާމު: 100 🪙
-                                </div>
+                                <div className="cert-bonus">🎉 ބޯނަސް އިނާމު: 100 🪙</div>
                             </div>
                         </div>
                     ) : (
                         <div style={{textAlign: 'center', padding: '40px', color: '#888'}}>
                             <svg width="48" height="48" fill="none" stroke="#ddd" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                             <p>އަދި ސެޓްފިކެޓެއް ނުލިބޭ...</p>
-                            <p style={{fontSize: '12px'}}>ޕްރޮގްރާމްތަކުގައި ބައިވެރިވުމުން ސެޓްފިކެޓް ލިބޭނެއެވެ.</p>
                         </div>
                     )}
                 </div>
@@ -1398,7 +1275,6 @@ export default function App() {
                             <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
                         )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
                     </div>
-
                 </div>
             )}
 
@@ -1426,9 +1302,7 @@ export default function App() {
                             const myTickets = myOrders.filter(o => o.item_id === gift.id).length;
                             return (
                                 <div key={gift.id} className="gift-card" style={{border: myTickets > 0 ? '2px solid #4caf50' : '2px solid #fff3e0'}}>
-                                    <div className="gift-image-container">
-                                        <img src={gift.image_url} alt={gift.name} loading="lazy" decoding="async" />
-                                    </div>
+                                    <div className="gift-image-container"><img src={gift.image_url} alt={gift.name} loading="lazy" decoding="async" /></div>
                                     <h4 style={{margin: '0 0 5px 0', fontSize: '13px', lineHeight: '1.3'}}>{gift.name}</h4>
                                     <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '13px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
                                     
@@ -1437,12 +1311,7 @@ export default function App() {
                                             🎟️ މަގޭ ޓިކެޓް: <span className="ltr-text">{myTickets}</span>
                                         </div>
                                     )}
-
-                                    <button 
-                                        onClick={() => handlePurchase(gift)} 
-                                        style={{...styles.btn, background: canAfford ? '#ff9800' : '#f5f5f5', color: canAfford ? 'white' : '#999', padding: '8px', fontSize: '12px', width: '100%', boxSizing: 'border-box'}}
-                                        disabled={!canAfford}
-                                    >
+                                    <button onClick={() => handlePurchase(gift)} style={{...styles.btn, background: canAfford ? '#ff9800' : '#f5f5f5', color: canAfford ? 'white' : '#999', padding: '8px', fontSize: '12px', width: '100%', boxSizing: 'border-box'}} disabled={!canAfford}>
                                         {canAfford ? '+ ޓިކެޓް ގަންނަވާ' : '🔒 ކޮއިން މަދު'}
                                     </button>
                                 </div>
@@ -1465,16 +1334,10 @@ export default function App() {
                         <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>(2 ފަހަރު ކުޅެވޭނެ. ބާކީ: <span className="ltr-text" style={{width:'auto'}}>{2 - (profileData.quiz_attempts_today || 0)}</span>)</p>
                         <button onClick={startQuiz} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '14px'}}>މިއަދުގެ ކުއިޒް ކުޅުއްވާ</button>
                     </div>
-
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4 style={{color: '#1976d2'}}>🧮 ސުވާލު ކީސާ {profileData?.grade ? `(${profileData.grade})` : ''}</h4>
                         <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>މަޢުލޫމާތު މުއްސަނދިކުރުމަށް އެކި ރޮނގުތަކުން ސުވާލު.</p>
                         <button onClick={startMathQuiz} style={{...styles.btn, background: '#1976d2', color: 'white', padding: '8px', fontSize: '14px'}}>ޗެލެންޖް ފަށާ!</button>
-                    </div>
-
-                    <div className="program-card" style={{marginBottom: '10px'}}>
-                        <h4 style={{color: '#777'}}>📜 ޙަދީޘް މުބާރާތް</h4>
-                        <button disabled style={{...styles.btnSecondary, background: '#eee', color: '#999', padding: '8px', fontSize: '14px', cursor: 'not-allowed'}}>އަދި ނުހުޅުވޭ</button>
                     </div>
                 </div>
             )}
@@ -1486,7 +1349,6 @@ export default function App() {
                         <BrandLogo />
                         <div style={{textAlign:'center', marginBottom: '20px', borderBottom: '2px dashed #ccc', paddingBottom: '15px'}}>
                             <h2 style={{color: '#2e7d32', margin: '10px 0 5px 0'}}>ރަޖިސްޓްރޭޝަން ސްލިޕް</h2>
-                            <p className="ltr-text" style={{margin:0, color:'#666', fontSize:'13px', textAlign: 'center'}}>The Secretariat of the Lhohi Council</p>
                         </div>
                         <table className="official-slip-table" style={{ width: '100%', textAlign: 'right', borderCollapse: 'collapse' }}>
                             <tbody>
@@ -1496,9 +1358,6 @@ export default function App() {
                                 <tr><td className="slip-label">ބައި:</td><td className="slip-value">{profileData.level || '-'}</td></tr>
                                 <tr><td className="slip-label">ކިޔަވާ ގޮތް:</td><td className="slip-value">{profileData.category || '-'}</td></tr>
                                 <tr><td className="slip-label">ކިޔަވާ ތަން:</td><td className="slip-value">{profileData.recitation || '-'}</td></tr>
-                                <tr><td className="slip-label">ބެލެނިވެރިޔާ:</td><td className="slip-value">{profileData.parent_name !== 'N/A' ? profileData.parent_name : '-'}</td></tr>
-                                <tr><td className="slip-label">އެޑްރެސް:</td><td className="slip-value">{profileData.parent_address || '-'}</td></tr>
-                                <tr><td className="slip-label">ފޯނު:</td><td className="slip-value"><span className="ltr-text">{profileData.parent_phone || '-'}</span></td></tr>
                                 <tr><td className="slip-label" style={{color: '#d32f2f', fontWeight: 'bold', paddingTop: '15px'}}>މާކްސް:</td><td className="slip-value ltr-text" style={{paddingTop: '15px', fontSize: '20px', color: '#d32f2f', textAlign: 'right'}}>{profileData.marks || 'ނުލިބޭ'}</td></tr>
                             </tbody>
                         </table>
@@ -1512,19 +1371,15 @@ export default function App() {
       {view === 'quiz' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quizCard} className="animate-card">
-            
             <BrandLogo />
-
             {quizState === 'intro' && (
               <div style={{textAlign:'right'}}>
                 <h2 style={{color: '#0056b3'}}>❓ ޅޮހިނޫރު ސުވާލު މުބާރާތް</h2>
                 <p>ކޮލިފައިވުމަށް %80 ހޯއްދަވަންޖެހޭނެ.</p>
-                <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={styles.btn} onClick={startQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ފަށަމާ'}</button>
                 <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
               </div>
             )}
-
             {quizState === 'playing' && questions[currentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1539,31 +1394,17 @@ export default function App() {
                 </div>
               </>
             )}
-
             {quizState === 'result' && (
               <div style={{textAlign:'center'}}>
                 <h1 className="ltr-text">{score} / {questions.length}</h1>
                 {(score >= Math.ceil(questions.length * 0.8)) ? 
-                    <><p style={{color:'green', fontWeight: 'bold'}}>🎉 ކޮލިފައިވެއްޖެ! 5 ކޮއިން ލިބޭނެ.</p><p style={{fontSize: '12px', color: '#666'}}>މަޑުކޮށްލައްވާ...</p></> 
-                    : 
-                <>
-                  <p style={{color:'red'}}>ކޮލިފައިވުމަށް އަލުން މަސައްކަތްކުރައްވާ!</p>
-                  <button style={styles.btnSecondary} onClick={() => {navigateTo('home');}}>ހޯމް ޕޭޖަށް</button>
-                </>}
+                    <><p style={{color:'green', fontWeight: 'bold'}}>🎉 ކޮލިފައިވެއްޖެ! 5 ކޮއިން ލިބޭނެ.</p></> 
+                    : <><p style={{color:'red'}}>ކޮލިފައިވުމަށް އަލުން މަސައްކަތްކުރައްވާ!</p><button style={styles.btnSecondary} onClick={() => {navigateTo('home');}}>ހޯމް ޕޭޖަށް</button></>}
               </div>
             )}
-            
             {quizState === 'success' && (
               <div style={{textAlign:'center'}}>
                 <h1 style={{fontSize:'50px', margin:'0 0 10px 0'}}>✅</h1>
-                <h2 style={{marginTop:0}}>ލިބިއްޖެ!</h2>
-                
-                <div style={{marginTop:'20px', textAlign:'right', background:'#f9f9f9', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
-                    <h4 style={{margin:'0 0 10px 0', borderBottom:'1px solid #ddd', paddingBottom:'5px'}}>🏆 މިއަދުގެ ޓޮޕް 10 ({getActiveQuizDate()})</h4>
-                    {leaderboard.length > 0 ? leaderboard.map((l, i) => (
-                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
-                    )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
-                </div>
                 <button style={{...styles.btn, marginTop:20}} onClick={() => { resetQuiz(); navigateTo('home'); }}>ހޯމް ޕޭޖަށް</button>
               </div>
             )}
@@ -1574,73 +1415,51 @@ export default function App() {
       {view === 'math_quiz' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quizCard} className="animate-card">
-            
             <BrandLogo />
-
             {mathState === 'intro' && (
               <div style={{textAlign:'right'}}>
                 <h2 style={{color: '#1976d2'}}>🧮 ސުވާލު ކީސާ</h2>
                 <p>5 ސުވާލު.</p>
-                <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={{...styles.btn, background: '#1976d2'}} onClick={startMathQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ޗެލެންޖް ފަށާ!'}</button>
                 <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
               </div>
             )}
-
             {mathState === 'playing' && mathQuestions[mathCurrentQ] && (
               <>
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom: '2px solid #e3f2fd', paddingBottom: '10px', marginBottom: '15px'}}>
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>ސުވާލު <span className="ltr-text" style={{width:'auto'}}>{mathCurrentQ+1} / {mathQuestions.length}</span></span>
                     <span style={{fontWeight: 'bold', color: '#1976d2'}}>މާކްސް: <span className="ltr-text" style={{width:'auto'}}>{mathScore}</span></span>
                 </div>
-                
-                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'rtl', fontSize:'24px', color:'#333', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
-                
+                <h3 style={{lineHeight: '1.6', marginBottom: '25px', textAlign:'center', direction:'rtl', fontSize:'24px', color:'#333', fontWeight: 'bold'}}>{mathQuestions[mathCurrentQ].question_text}</h3>
                 <div style={{display:'flex', flexDirection:'column', gap:12}}>
                   {[mathQuestions[mathCurrentQ].option_1, mathQuestions[mathCurrentQ].option_2, mathQuestions[mathCurrentQ].option_3].map((opt, i) => (
-                    <button key={i} style={{...styles.optionBtn, direction: 'rtl', textAlign: 'center', fontSize: '18px', fontFamily: '"Faruma", Arial, sans-serif', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
+                    <button key={i} style={{...styles.optionBtn, direction: 'rtl', textAlign: 'center', fontSize: '18px', fontWeight: 'bold', background: getButtonColor(opt, mathQuestions, mathCurrentQ), borderColor: getButtonColor(opt, mathQuestions, mathCurrentQ) !== 'white' ? getButtonColor(opt, mathQuestions, mathCurrentQ) : '#ddd'}} onClick={() => handleMathAnswer(opt)} disabled={isAnswered}>{opt}</button>
                   ))}
                 </div>
               </>
             )}
-
             {mathState === 'result' && (
               <div style={{textAlign:'center'}}>
                 <h1 className="ltr-text">{mathScore} / {mathQuestions.length}</h1>
-                
                 {mathScore < 3 ? (
                     <div style={{textAlign: 'right', direction: 'rtl', marginTop: '20px', padding: '15px', background: '#ffebee', borderRadius: '10px', borderRight: '4px solid #f44336'}}>
-                        <h4 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>ރަނގަޅު ޖަވާބުތައް ދަސްކޮށްލަމާ:</h4>
+                        <h4 style={{color: '#d32f2f', margin: '0 0 10px 0'}}>ރަނގަޅު ޖަވާބުތައް:</h4>
                         {mathQuestions.map((q, i) => (
                             <div key={i} style={{background: 'white', padding: '10px', marginBottom: '8px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'}}>
-                                <p style={{margin: '0 0 5px 0', fontSize: '16px', fontWeight: 'bold', fontFamily: '"Faruma", Arial, sans-serif', direction: 'rtl', textAlign: 'right'}}>{q.question_text}</p>
-                                <p style={{margin: 0, color: 'green', fontSize: '15px', fontFamily: '"Faruma", Arial, sans-serif', direction: 'rtl', textAlign: 'right'}}>✓ {q.correct_option}</p>
+                                <p style={{margin: '0 0 5px 0', fontSize: '16px', fontWeight: 'bold', direction: 'rtl', textAlign: 'right'}}>{q.question_text}</p>
+                                <p style={{margin: 0, color: 'green', fontSize: '15px', direction: 'rtl', textAlign: 'right'}}>✓ {q.correct_option}</p>
                             </div>
                         ))}
-                        <p style={{fontSize: '13px', color: '#666', marginTop: '15px', fontWeight: 'bold'}}>ފާސްނުވޭ! ކޮއިންއެއް ނުލިބޭނެ.</p>
                         <button style={{...styles.btn, background: '#1976d2', marginTop: '10px'}} onClick={() => { navigateTo('home'); }}>ހޯމް ޕޭޖަށް</button>
                     </div>
                 ) : (
-                    <>
-                        <p style={{color:'green', fontWeight: 'bold'}}>🎉 މޮޅު! 5 ކޮއިން ލިބޭނެ.</p>
-                        <p style={{fontSize: '12px', color: '#666'}}>މަޑުކޮށްލައްވާ...</p>
-                    </>
+                    <><p style={{color:'green', fontWeight: 'bold'}}>🎉 މޮޅު! 5 ކޮއިން ލިބޭނެ.</p></>
                 )}
               </div>
             )}
-            
             {mathState === 'success' && (
               <div style={{textAlign:'center'}}>
                 <h1 style={{fontSize:'50px', margin:'0 0 10px 0'}}>✅</h1>
-                <h2 style={{marginTop:0}}>ސޭވްކުރެވިއްޖެ!</h2>
-
-                <div style={{marginTop:'20px', textAlign:'right', background:'#e3f2fd', padding:'15px', borderRadius:'10px', maxHeight:'200px', overflowY:'auto'}}>
-                    <h4 style={{margin:'0 0 10px 0', color: '#1976d2', borderBottom:'1px solid #bbdefb', paddingBottom:'5px'}}>🧮 މިއަދުގެ ސުވާލު ކީސާ ޓޮޕް 10 ({getActiveQuizDate()})</h4>
-                    {mathLeaderboard.length > 0 ? mathLeaderboard.map((l, i) => (
-                        <div key={i} className="leaderboard-row"><span>{i+1}. {l.username}</span><span className="ltr-text" style={{width:'auto'}}>{l.score} މާކްސް</span></div>
-                    )) : <p style={{fontSize:'12px', color:'#777'}}>މިއަދު އަދި އެއްވެސް ފަރާތަކުން ބައިވެރިވެފައެއް ނުވޭ.</p>}
-                </div>
-
                 <button style={{...styles.btn, marginTop:20, background: '#1976d2'}} onClick={() => { resetMath(); navigateTo('home'); }}>ހޯމް ޕޭޖަށް</button>
               </div>
             )}
@@ -1651,122 +1470,29 @@ export default function App() {
       {/* SECURE ADMIN PORTALS */}
       {view === 'admin' && (
           <AdminPanel 
-              allStudents={allStudents} 
-              allQuestions={allQuestions} 
-              allPartners={allPartners} 
-              partnerRequestsList={partnerRequestsList} 
-              allGifts={allGifts}
-              winnerDate={winnerDate} 
-              setWinnerDate={setWinnerDate} 
-              loadAdminData={loadAdminData} 
-              getActiveQuizDate={getActiveQuizDate} 
-              fetchLatestWinner={fetchLatestWinner}
-              handleLogout={handleLogout}
-              styles={styles}
-              showToast={showToast}
+              allStudents={allStudents} allQuestions={allQuestions} allPartners={allPartners} 
+              partnerRequestsList={partnerRequestsList} allGifts={allGifts}
+              appSettings={appSettings} pendingClaims={pendingClaims} fetchAppSettings={fetchAppSettings}
+              winnerDate={winnerDate} setWinnerDate={setWinnerDate} loadAdminData={loadAdminData} 
+              getActiveQuizDate={getActiveQuizDate} fetchLatestWinner={fetchLatestWinner}
+              handleLogout={handleLogout} styles={styles} showToast={showToast}
           />
       )}
 
-      {/* SHOP ADMIN PORTAL */}
       {view === 'shop_admin' && (
           <ShopAdminPanel 
-              shopOrders={shopOrders} 
-              shopWinners={shopWinners} 
-              loadShopAdminData={loadShopAdminData} 
-              handleLogout={handleLogout}
-              styles={styles}
-              showToast={showToast}
+              shopOrders={shopOrders} shopWinners={shopWinners} loadShopAdminData={loadShopAdminData} 
+              handleLogout={handleLogout} styles={styles} showToast={showToast}
           />
       )}
     </div>
   );
 }
 
-function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogout, styles, showToast }) {
-    const [shopTab, setShopTab] = useState('orders');
-
-    const deliverOrder = async (id) => {
-        if(window.confirm("މި އިނާމު ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
-            await supabase.from('lhohinoor_purchases').update({ status: 'Delivered' }).eq('id', id); 
-            loadShopAdminData(); 
-            showToast('އޯޑަރު ދޫކުރެވިއްޖެ!', 'success');
-        }
-    };
-
-    const deliverVoucher = async (id) => {
-        if(window.confirm("މި ވައުޗަރ ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
-            await supabase.from('lhohinoor_daily_winners').update({ status: 'Delivered' }).eq('id', id); 
-            loadShopAdminData(); 
-            showToast('ވައުޗަރ ދޫކުރެވިއްޖެ!', 'success');
-        }
-    };
-
-    return (
-        <div style={styles.container}>
-          <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
-                <h2 style={{color: '#ff9800', textAlign: 'right', margin: 0}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
-                <button onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
-            </div>
-            
-            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
-                <button style={{...styles.tab, borderBottom: shopTab==='orders'?'3px solid #ff9800':'none', color: shopTab==='orders'?'#ff9800':''}} onClick={()=>setShopTab('orders')}>ގުރުއަތު ޓިކެޓް އޯޑަރުތައް</button>
-                <button style={{...styles.tab, borderBottom: shopTab==='vouchers'?'3px solid #ff9800':'none', color: shopTab==='vouchers'?'#ff9800':''}} onClick={()=>setShopTab('vouchers')}>ކުއިޒް ވައުޗަރުތައް</button>
-            </div>
-
-            {shopTab === 'orders' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކުދިން ގަނެފައިވާ ގުރުއަތު ޓިކެޓްތަކުގެ ލިސްޓު (މިއީ ލައިވް ޑްރޯއަށް ބޭނުންކުރެވޭނެ ލިސްޓެކެވެ).</p>
-                    <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>ޓިކެޓް ގަތް އިނާމު</th><th>ކޮއިން</th></tr></thead>
-                        <tbody>
-                            {shopOrders.length > 0 ? shopOrders.map(o => (
-                                <tr key={o.id}>
-                                    <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
-                                    <td>{o.student_name}</td>
-                                    <td className="ltr-text">{o.phone}</td>
-                                    <td>{o.item_name}</td>
-                                    <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
-                                </tr>
-                            )) : <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>އަދި ޓިކެޓެއް ނުވިކޭ</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {shopTab === 'vouchers' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކޮންމެ ދުވަހެއްގެ ކުއިޒް ނަސީބުވެރިޔާއަށް ދެވޭ 100 ރުފިޔާގެ ވައުޗަރ ހަވާލުކުރުން.</p>
-                    <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>
-                            {shopWinners.length > 0 ? shopWinners.map(w => (
-                                <tr key={w.id}>
-                                    <td className="ltr-text" style={{fontSize: '12px'}}>{w.won_at}</td>
-                                    <td>{w.username}</td>
-                                    <td className="ltr-text">{w.phone}</td>
-                                    <td>{w.prize}</td>
-                                    <td style={{color: w.status === 'Pending' || !w.status ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{w.status === 'Pending' || !w.status ? 'ނުދީ' : 'ދީފި'}</td>
-                                    <td>
-                                        {w.status === 'Pending' || !w.status ? (
-                                            <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverVoucher(w.id)}>ދީފިން (Deliver)</button>
-                                        ) : (
-                                            <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            )) : <tr><td colSpan="6" style={{textAlign: 'center', padding: '20px'}}>އަދި ނަސީބުވެރިޔަކު ނެތް</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-          </div>
-        </div>
-    );
-}
-
+// 🔥 ADMIN PANEL UPDATED WITH BONUS TASKS 🔥
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
+    appSettings, pendingClaims, fetchAppSettings,
     winnerDate, setWinnerDate, loadAdminData, getActiveQuizDate, 
     fetchLatestWinner, handleLogout, styles, showToast
 }) {
@@ -1774,40 +1500,35 @@ function AdminPanel({
     const [editingQ, setEditingQ] = useState(null);
     const [bulkJSON, setBulkJSON] = useState('');
 
-    const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ (Correct option mismatch)", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
+    const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
     
-    const saveGift = async (e) => { 
-        e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); 
-        await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); 
-        e.target.reset(); loadAdminData(); showToast("އިނާމު ސޭވްވެއްޖެ!", "success");
-    };
+    const saveGift = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); e.target.reset(); loadAdminData(); showToast("އިނާމު ސޭވްވެއްޖެ!", "success"); };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
 
-    const openLiveDraw = () => {
-        window.history.pushState({ view: 'live_draw', dashView: 'overview' }, '', '');
-        const popStateEvent = new PopStateEvent('popstate', { state: { view: 'live_draw', dashView: 'overview' }});
-        window.dispatchEvent(popStateEvent);
+    const saveAppSettings = async (e) => {
+        e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
+        await supabase.from('lhohinoor_app_settings').update(d).eq('id', 1);
+        showToast("ބޯނަސް ސެޓިންގްސް ސޭވްވެއްޖެ!", "success");
+        fetchAppSettings();
     };
 
-    const savePartner = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_partners').insert([{ name: d.name, logo_url: d.logo_url }]); e.target.reset(); loadAdminData(); };
-    const deletePartner = async (id) => { if(window.confirm("މި ބައިވެރިޔާ ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_partners').delete().eq('id', id); loadAdminData(); } };
+    const approveClaim = async (id, coins) => {
+        await supabase.from('lhohinoor_bonus_claims').update({ status: 'Approved', coins_awarded: coins }).eq('id', id);
+        showToast("އެޕްރޫވް ކުރެވިއްޖެ!", "success");
+        loadAdminData();
+    };
+
+    const rejectClaim = async (id) => {
+        await supabase.from('lhohinoor_bonus_claims').update({ status: 'Rejected' }).eq('id', id);
+        showToast("ރިޖެކްޓް ކުރެވިއްޖެ!", "error");
+        loadAdminData();
+    };
+
+    const openLiveDraw = () => { window.history.pushState({ view: 'live_draw', dashView: 'overview' }, '', ''); window.dispatchEvent(new PopStateEvent('popstate', { state: { view: 'live_draw', dashView: 'overview' }})); };
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
     const deleteStudent = async (id) => { if(window.confirm("މި ދަރިވަރު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_students').delete().eq('id', id); loadAdminData(); } };
     
-    const handleBulkMathUpload = async () => {
-        try {
-            const parsedData = JSON.parse(bulkJSON);
-            if (!Array.isArray(parsedData)) return showToast("ޖޭސަން (JSON) ފޯމެޓް ނުބައި!", "error");
-            const { error } = await supabase.from('lhohinoor_math_questions').insert(parsedData);
-            if (error) throw error;
-            showToast(`${parsedData.length} ސުވާލު ކީސާ ސޭވްވެއްޖެ!`, "success");
-            setBulkJSON('');
-        } catch (err) {
-            showToast("މައްސަލައެއް: " + err.message, "error");
-        }
-    };
-
     const pickWinner = async () => { 
         if (!winnerDate) return showToast("ތާރީޚް ޚިޔާރުކުރައްވާ.", "error");
         const selectedDateObj = new Date(winnerDate); selectedDateObj.setDate(selectedDateObj.getDate() - 7); const sevenDaysAgo = selectedDateObj.toISOString().split('T')[0];
@@ -1822,8 +1543,8 @@ function AdminPanel({
         if (eligibleCandidates.length > 0) {
           const winner = eligibleCandidates[Math.floor(Math.random() * eligibleCandidates.length)];
           await supabase.from('lhohinoor_daily_winners').insert([{ username: winner.username, phone: winner.phone, score: winner.score, prize: "🎁 100 ރުފިޔާގެ ގިފްޓް ވައުޗަރ", won_at: winnerDate, congrats_count: 0, status: 'Pending' }]);
-          showToast(`ނަސީބުވެރިޔާ: ${winner.username} (Score: ${winner.score})`, "success"); fetchLatestWinner();
-        } else { showToast(`ޝަރުތު ހަމަވާ މީހުން ތިބި ނަމަވެސް، އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
+          showToast(`ނަސީބުވެރިޔާ: ${winner.username}`, "success"); fetchLatestWinner();
+        } else { showToast(`އެންމެންނަކީ ފާއިތުވި 7 ދުވަހު އިނާމު ލިބިފައިވާ މީހުން!`, "warning"); }
     };
 
     return (
@@ -1831,78 +1552,92 @@ function AdminPanel({
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
                 <h2 className="ltr-text" style={{textAlign: 'right', margin: 0}}>އެޑްމިން ޑޭޝްބޯޑު</h2>
-                <button onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް (Logout)</button>
+                <button onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް</button>
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
                 <button style={{...styles.tab, borderBottom: adminTab==='students'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('students')}>ދަރިވަރުން</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='quiz'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('quiz')}>ސުވާލު މުބާރާތް</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ސުވާލު ކީސާ</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none', color: adminTab==='gifts'?'#ff9800':''}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
-                
+                <button style={{...styles.tab, borderBottom: adminTab==='bonus'?'3px solid #e65100':'none', color: '#e65100'}} onClick={()=>setAdminTab('bonus')}>✨ ބޯނަސް ޓާސްކް</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none'}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
                 <button style={{...styles.tab, background: '#d32f2f', color: 'white', borderRadius: '8px'}} onClick={openLiveDraw}>🔴 ލައިވް ގުރުއަތު ޕޯޓަލް</button>
             </div>
             
             {adminTab === 'students' && (
-                <div style={{overflowX:'auto', paddingBottom: '10px'}}>
+                <div style={{overflowX:'auto'}}>
                     <div style={{display:'flex', gap:10, marginBottom:15, alignItems: 'center', background:'#f0f4f8', padding:'10px', borderRadius:'8px', flexWrap: 'wrap'}}>
                         <label style={{fontWeight:'bold', color:'#333'}}>ގުރުއަތު ނަގާ ތާރީޚް:</label>
                         <input type="date" value={winnerDate} onChange={(e) => setWinnerDate(e.target.value)} style={{...styles.input, width:'auto', padding:'8px'}} />
                         <button onClick={pickWinner} style={{...styles.btn, background:'purple', width:'auto', padding:'8px 15px'}}>ނަސީބުވެރިޔާ ހޮވާ</button>
                     </div>
                     <table style={styles.table}>
-                        <thead><tr><th>ނަން</th><th>އައި.ޑީ</th><th>ގްރޭޑް</th><th>ބައި</th><th>ގޮތް</th><th>ތަން</th><th>ބެލެނިވެރިޔާ</th><th>އެޑްރެސް</th><th>ފޯނު</th><th>މާކްސް</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>{allStudents.map(s => (<tr key={s.id}><td>{s.student_name}</td><td className="ltr-text">{s.id_card}</td><td>{s.grade || '-'}</td><td>{s.level || '-'}</td><td>{s.category || '-'}</td><td>{s.recitation || '-'}</td><td>{s.parent_name || '-'}</td><td>{s.parent_address || '-'}</td><td className="ltr-text">{s.parent_phone}</td><td><input style={styles.tableInput} defaultValue={s.marks} onBlur={(e) => updateStudentResult(s.id, 'marks', e.target.value)} /></td><td><button onClick={()=>deleteStudent(s.id)} style={{...styles.btnSecondary, background:'red'}}>ފޮހެލާ</button></td></tr>))}</tbody>
+                        <thead><tr><th>ނަން</th><th>އައި.ޑީ</th><th>ގްރޭޑް</th><th>ފޯނު</th><th>މާކްސް</th><th>ކަންތައް</th></tr></thead>
+                        <tbody>{allStudents.map(s => (<tr key={s.id}><td>{s.student_name}</td><td className="ltr-text">{s.id_card}</td><td>{s.grade || '-'}</td><td className="ltr-text">{s.parent_phone}</td><td><input style={styles.tableInput} defaultValue={s.marks} onBlur={(e) => updateStudentResult(s.id, 'marks', e.target.value)} /></td><td><button onClick={()=>deleteStudent(s.id)} style={{...styles.btnSecondary, background:'red'}}>ފޮހެލާ</button></td></tr>))}</tbody>
                     </table>
                 </div>
             )}
 
             {adminTab === 'quiz' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                <div style={{ overflowX: 'auto' }}>
                     <form className="q-form" onSubmit={saveQuestion} style={{...styles.form, minWidth: '600px'}}>
                         <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކުރޭ'} ސުވާލު</h3>
-                        <label style={{fontSize:'12px', color:'#666'}}>މި ސުވާލު ފެންނަންވީ ތާރީޚް:</label>
                         <input name="quiz_date" type="date" defaultValue={editingQ?.quiz_date || getActiveQuizDate()} style={{...styles.input, width: '200px'}} required />
                         <input name="question_text" placeholder="ސުވާލު" defaultValue={editingQ?.question_text} style={{...styles.input, direction:'rtl'}} required />
-                        <div style={{display:'flex', gap:10, flexWrap: 'wrap'}}>
-                            <input name="option_1" placeholder="ޖަވާބު 1" defaultValue={editingQ?.option_1} style={{...styles.input, flex: 1, minWidth: '150px', direction:'rtl'}} required />
-                            <input name="option_2" placeholder="ޖަވާބު 2" defaultValue={editingQ?.option_2} style={{...styles.input, flex: 1, minWidth: '150px', direction:'rtl'}} required />
-                            <input name="option_3" placeholder="ޖަވާބު 3" defaultValue={editingQ?.option_3} style={{...styles.input, flex: 1, minWidth: '150px', direction:'rtl'}} required />
+                        <div style={{display:'flex', gap:10}}>
+                            <input name="option_1" placeholder="ޖަވާބު 1" defaultValue={editingQ?.option_1} style={{...styles.input, flex: 1}} required />
+                            <input name="option_2" placeholder="ޖަވާބު 2" defaultValue={editingQ?.option_2} style={{...styles.input, flex: 1}} required />
+                            <input name="option_3" placeholder="ޖަވާބު 3" defaultValue={editingQ?.option_3} style={{...styles.input, flex: 1}} required />
                         </div>
-                        <input name="correct_option" placeholder="ރަނގަޅު ޖަވާބު" defaultValue={editingQ?.correct_option} style={{...styles.input, direction:'rtl'}} required />
-                        <div style={{display:'flex', gap:10, maxWidth: '300px'}}>
-                            <button type="submit" style={styles.btn}>ސޭވް</button>
-                            {editingQ && <button type="button" style={styles.btnSecondary} onClick={()=>{setEditingQ(null); document.querySelector('.q-form').reset()}}>ކެންސަލް</button>}
-                        </div>
+                        <input name="correct_option" placeholder="ރަނގަޅު ޖަވާބު" defaultValue={editingQ?.correct_option} style={{...styles.input}} required />
+                        <button type="submit" style={styles.btn}>ސޭވް</button>
                     </form>
-                    <table style={{...styles.table, marginTop:'20px', minWidth: '800px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ސުވާލު</th><th>ޖަވާބު</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>{allQuestions.map(q => (<tr key={q.id}><td style={{direction:'ltr', width: '100px'}}>{q.quiz_date}</td><td>{q.question_text}</td><td style={{color:'green'}}>{q.correct_option}</td><td style={{width: '200px'}}><button style={{...styles.btnSecondary, width:'auto', marginRight: '5px'}} onClick={()=>setEditingQ(q)}>ބަދަލުކުރޭ</button><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deleteQuestion(q.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
-                    </table>
                 </div>
             )}
 
-            {adminTab === 'math' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <h3 style={{color: '#1976d2'}}>ސުވާލު ކީސާ (Bulk Upload)</h3>
-                    <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި ސުވާލުތައް ޕޭސްޓް ކުރައްވާ.</p>
-                    <textarea 
-                        value={bulkJSON} 
-                        onChange={(e) => setBulkJSON(e.target.value)} 
-                        placeholder='[ {"grade": "Grade 3", "question_text": "ދިވެހިރާއްޖޭގެ ވެރިރަށަކީ ކޮބާ?", "option_1": "މާލެ", "option_2": "އައްޑޫ", "option_3": "ކުޅުދުއްފުށި", "correct_option": "މާލެ"} ]'
-                        style={{...styles.inputLtr, height: '200px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}}
-                    />
-                    <button onClick={handleBulkMathUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>އަޕްލޯޑް ކުރޭ</button>
+            {/* 🔥 NEW BONUS SETTINGS TAB 🔥 */}
+            {adminTab === 'bonus' && (
+                <div style={{ overflowX: 'auto' }}>
+                    <form onSubmit={saveAppSettings} style={{...styles.form, minWidth: '600px', background: '#f5f5f5', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
+                        <h3 style={{color: '#1976d2', marginTop: 0}}>📚 ރީޑް އެންޑް އާރން (Read & Earn)</h3>
+                        <textarea name="read_text" defaultValue={appSettings.read_text} placeholder="މިއަދުގެ ޙަދީޘް ނުވަތަ މަޢުލޫމާތު" style={{...styles.input, height: '80px', resize: 'vertical'}} required />
+                        <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
+                        <input name="read_coins" type="number" defaultValue={appSettings.read_coins} style={styles.inputLtr} required />
+
+                        <h3 style={{color: '#e65100', marginTop: '20px'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h3>
+                        <input name="puzzle_image_url" defaultValue={appSettings.puzzle_image_url} placeholder="ޕަޒްލް ފޮޓޯ ލިންކް (URL)" style={styles.inputLtr} />
+                        <input name="puzzle_answer" defaultValue={appSettings.puzzle_answer} placeholder="ރަނގަޅު ޖަވާބު" style={styles.input} />
+                        <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
+                        <input name="puzzle_coins" type="number" defaultValue={appSettings.puzzle_coins} style={styles.inputLtr} />
+
+                        <button type="submit" style={{...styles.btn, background: '#2e7d32', marginTop: '10px'}}>ސޭވް ބޯނަސް ސެޓިންގްސް</button>
+                    </form>
+
+                    <h3 style={{color: '#8e24aa'}}>🌟 އެޕްރޫވް ނުކުރާ އަޚްލާޤީ ޓާސްކްތައް (Pending Good Deeds)</h3>
+                    <table style={{...styles.table, minWidth: '600px'}}>
+                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ކުރި ކަންތައް</th><th>ކަންތައް</th></tr></thead>
+                        <tbody>
+                            {pendingClaims.map(c => {
+                                const student = allStudents.find(s => s.id === c.user_id);
+                                return (
+                                    <tr key={c.id}>
+                                        <td className="ltr-text">{c.claim_date}</td>
+                                        <td>{student ? student.student_name : 'Unknown'}</td>
+                                        <td>{c.task_type.replace('behavior: ', '')}</td>
+                                        <td>
+                                            <button onClick={() => approveClaim(c.id, 20)} style={{...styles.btn, background: '#4caf50', width: 'auto', padding: '5px 10px', fontSize: '12px', marginRight: '5px'}}>✔ އެޕްރޫވް (20🪙)</button>
+                                            <button onClick={() => rejectClaim(c.id)} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '5px 10px', fontSize: '12px'}}>✖ ރިޖެކްޓް</button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {pendingClaims.length === 0 && <tr><td colSpan="4" style={{textAlign: 'center', padding: '20px'}}>އެޕްރޫވް ކުރަންޖެހޭ ކަމެއް ނެތް.</td></tr>}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
             {adminTab === 'gifts' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <div style={{background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginBottom: '20px', borderLeft: '4px solid #1976d2'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#0056b3'}}>ℹ️ <b>މަޢުލޫމާތު:</b> ގުރުއަތު ނެގޭނީ މި އިނާމުގެ "ޓިކެޓް" ގަނެފައިވާ ކުދިންގެ މެދުގައެވެ. އެއް ކުއްޖަކަށް އެއް އިނާމެއްގެ ގިނަ ޓިކެޓްވެސް ގަނެވިދާނެއެވެ (ޗާންސް ބޮޑުވާނެއެވެ).</p>
-                    </div>
-
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
                         <h3 style={{color: '#e65100', marginTop: 0}}>އައު އިނާމެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="އިނާމުގެ ނަން" style={styles.input} required />
@@ -1918,36 +1653,49 @@ function AdminPanel({
                                 <td><img src={g.image_url} alt={g.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #ddd' }} /></td>
                                 <td>{g.name}</td>
                                 <td className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>{g.cost} 🪙</td>
-                                <td>
-                                    <button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button>
-                                </td>
+                                <td><button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button></td>
                             </tr>
                         ))}</tbody>
                     </table>
                 </div>
             )}
+          </div>
+        </div>
+    );
+}
 
-            {adminTab === 'partners' && (
+function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogout, styles, showToast }) {
+    const [shopTab, setShopTab] = useState('orders');
+
+    const deliverOrder = async (id) => {
+        if(window.confirm("މި އިނާމު ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
+            await supabase.from('lhohinoor_purchases').update({ status: 'Delivered' }).eq('id', id); 
+            loadShopAdminData(); showToast('އޯޑަރު ދޫކުރެވިއްޖެ!', 'success');
+        }
+    };
+    return (
+        <div style={styles.container}>
+          <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
+                <h2 style={{color: '#ff9800', textAlign: 'right', margin: 0}}>އިނާމު ފިހާރަ އެޑްމިން</h2>
+                <button onClick={handleLogout} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '8px 15px'}}>ލޮގްއައުޓް</button>
+            </div>
+            <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
+                <button style={{...styles.tab, borderBottom: shopTab==='orders'?'3px solid #ff9800':'none'}} onClick={()=>setShopTab('orders')}>ގުރުއަތު ޓިކެޓްތައް</button>
+            </div>
+            {shopTab === 'orders' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <form onSubmit={savePartner} style={{...styles.form, marginBottom:'20px', minWidth: '500px'}}>
-                        <h3>ބައިވެރިއެއް އިތުރުކުރޭ</h3>
-                        <input name="name" placeholder="ނަން" style={styles.input} required />
-                        <input name="logo_url" placeholder="ލޯގޯ ލިންކް (URL)" style={styles.inputLtr} />
-                        <button type="submit" style={{...styles.btn, maxWidth: '200px'}}>އިތުރުކުރޭ</button>
-                    </form>
-                    <table style={{...styles.table, minWidth: '500px'}}>
-                        <thead><tr><th>ނަން</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>{allPartners.map(p => (<tr key={p.id}><td>{p.name}</td><td><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deletePartner(p.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
-                    </table>
-                    
-                    <h3 style={{marginTop: '30px'}}>ރިކުއެސްޓްތައް</h3>
-                    <table style={{...styles.table, minWidth: '500px'}}>
-                        <thead><tr><th>ވިޔަފާރި</th><th>ފޯނު</th><th>ގުޅޭނެ ފަރާތް</th></tr></thead>
-                        <tbody>{partnerRequestsList.map(r => (<tr key={r.id}>
-                            <td>{r.business_name}</td>
-                            <td style={{direction: 'ltr', textAlign: 'right'}}>{r.phone}</td>
-                            <td>{r.contact_name}</td>
-                        </tr>))}</tbody>
+                    <table style={{...styles.table, minWidth: '800px'}}>
+                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>ޓިކެޓް ގަތް އިނާމު</th><th>ކޮއިން</th></tr></thead>
+                        <tbody>
+                            {shopOrders.length > 0 ? shopOrders.map(o => (
+                                <tr key={o.id}>
+                                    <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
+                                    <td>{o.student_name}</td><td className="ltr-text">{o.phone}</td><td>{o.item_name}</td>
+                                    <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
+                                </tr>
+                            )) : <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>އަދި ޓިކެޓެއް ނުވިކޭ</td></tr>}
+                        </tbody>
                     </table>
                 </div>
             )}
