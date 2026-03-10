@@ -203,15 +203,13 @@ export default function App() {
     }
   };
 
-  // 🔥 FIX: ROBUST FETCH FOR DAILY WINNER USING `won_at` DATE 🔥
   const fetchLatestWinner = async () => {
     const { data } = await supabase.from('lhohinoor_daily_winners')
         .select('*')
-        .order('won_at', { ascending: false }) // Sorts by the date of the quiz
+        .order('won_at', { ascending: false }) 
         .limit(20); 
     
     if (data && data.length > 0) {
-        // Find the first winner that does NOT have the word "ގުރުއަތުން" (Draw) in the prize
         const daily = data.find(w => w.prize && !String(w.prize).includes('ގުރުއަތުން'));
         if (daily) {
             setDailyWinner(daily);
@@ -227,7 +225,6 @@ export default function App() {
           .limit(30);
           
       if (data && data.length > 0) { 
-          // Find up to 6 winners that DO have the word "ގުރުއަތުން" (Draw) in the prize
           const monthly = data.filter(w => w.prize && String(w.prize).includes('ގުރުއަތުން')).slice(0, 6);
           setMonthlyWinners(monthly); 
       }
@@ -243,6 +240,7 @@ export default function App() {
         let totalGeneralScore = 0;
         let totalMathScore = 0;
         let spentCoins = 0;
+        let certCount = 0;
 
         const activeDate = getActiveQuizDate();
 
@@ -269,7 +267,11 @@ export default function App() {
             setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
         }
         
-        if (data.level) calculatedCoins += 100;
+        // 🔥 CERTIFICATE & BONUS LOGIC 🔥
+        if (data.level && String(data.level).trim() !== '' && data.level !== 'N/A') {
+            calculatedCoins += 100; // Flat 100 coin bonus for Quran Participation
+            certCount = 1; // Unlocks 1 certificate
+        }
 
         const currentBalance = calculatedCoins - spentCoins;
 
@@ -288,7 +290,7 @@ export default function App() {
             quiz_attempts_today: todayGenCount,
             math_attempts_today: todayMathCount,
             unlocked_badges: unlockedBadgesCount, 
-            total_certificates: 0 
+            total_certificates: certCount // Maps to the state
         };
         
         setProfileData(enrichedData);
@@ -434,7 +436,6 @@ export default function App() {
       setLoading(false);
   };
 
-  // 🔥 LIVE DRAW EXECUTOR WITH "NO ONE ELIGIBLE" NOTIFICATION 🔥
   const executeLiveDraw = async (gift) => {
       const { data: allStudentData } = await supabase.from('lhohinoor_students').select('id, student_name, parent_phone, level');
       const { data: allQuizAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('user_id, score');
@@ -473,18 +474,17 @@ export default function App() {
           setSpinName(eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)].student_name);
           counter++;
           
-          if (counter > 30) { // Stops after ~3 seconds
+          if (counter > 30) { 
               clearInterval(spinInterval);
               const finalWinner = eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)];
               setSpinName(finalWinner.student_name);
               setDrawWinnerObj(finalWinner);
               setIsSpinning(false);
               
-              // Safely save as Monthly Draw Winner (Score = 0 so it doesn't crash DB if score is INT)
               supabase.from('lhohinoor_daily_winners').insert([{ 
                   username: finalWinner.student_name, 
                   phone: finalWinner.parent_phone, 
-                  score: 0, 
+                  score: 'Draw', 
                   prize: `🎁 ގުރުއަތުން: ${gift.name}`, 
                   won_at: getActiveQuizDate(), 
                   congrats_count: 0, 
@@ -675,7 +675,8 @@ export default function App() {
         .celebration-banner { font-size: 20px; color: #d84315; font-weight: bold; margin-bottom: 10px; }
         
         .dash-topbar { display: flex; justify-content: space-around; background: linear-gradient(90deg, #0056b3, #007bff); color: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,86,179,0.3); }
-        .dash-stat { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .dash-stat { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; }
+        .dash-stat:hover { transform: translateY(-3px); }
         .dash-stat h3 { margin: 5px 0 0 0; font-size: 24px; font-family: sans-serif; }
         .dash-stat p { margin: 0; font-size: 12px; opacity: 0.9; }
         
@@ -694,7 +695,6 @@ export default function App() {
         .badge-locked { filter: grayscale(100%); opacity: 0.6; }
         .badge-unlocked { filter: drop-shadow(0px 4px 6px rgba(255,215,0,0.6)); border: 1px solid #fbc02d; background: #fffde7;}
 
-        /* 🔥 OPTIMIZED SQUARE GIFT CARDS FOR MOBILE 🔥 */
         .gift-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; margin-top: 15px; }
         .gift-card { background: white; border: 2px solid #fff3e0; border-radius: 15px; padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
         .gift-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(255,152,0,0.15); border-color: #ffb74d; }
@@ -711,25 +711,32 @@ export default function App() {
         .leaderboard-row:nth-child(2) { color: #a9a9a9; font-weight: bold; font-size: 16px; }
         .leaderboard-row:nth-child(3) { color: #cd7f32; font-weight: bold; font-size: 16px; }
 
-        /* 🔥 CLEAN PROFESSIONAL NAVBAR (NO LOGOUT HERE) 🔥 */
         .main-navbar { background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 1000; padding: 12px 3%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-bottom: 2px solid #f0f4f8; }
         .nav-links { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; justify-content: flex-end; }
         .nav-item { color: #555; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; padding: 6px 8px; border-radius: 8px; user-select: none; white-space: nowrap; }
         .nav-item:hover { background: #f0f4f8; color: #0056b3; }
         .nav-btn-primary { background: linear-gradient(135deg, #0056b3, #007bff); color: white; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 13px; transition: transform 0.2s ease, box-shadow 0.2s ease; box-shadow: 0 4px 10px rgba(0,86,179,0.2); white-space: nowrap; }
         .nav-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,86,179,0.3); }
+        .nav-btn-danger { background: #ffebee; color: #d32f2f; border: none; padding: 8px 15px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s ease; white-space: nowrap; }
+        .nav-btn-danger:hover { background: #ffcdd2; }
 
-        /* 🔥 MARQUEE FIX 🔥 */
         @keyframes scrollMarquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
         
-        /* 🔥 LIVE DRAW STYLES 🔥 */
         .live-draw-container { text-align: center; color: white; padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow: hidden; }
         .spinner-box { background: white; color: #333; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 80%; max-width: 600px; z-index: 2; position: relative; }
         .spin-name { font-size: 60px; font-weight: bold; margin: 20px 0; color: #d32f2f; }
         .spin-name.spinning { animation: pulseText 0.2s infinite; color: #555; }
         .live-gift-img { width: 150px; height: 150px; object-fit: contain; margin-bottom: 20px; border-bottom: 3px solid #eee; padding-bottom: 15px; }
+
+        /* 🔥 CERTIFICATE DESIGN 🔥 */
+        .cert-container { background: #fff9e6; padding: 30px; border: 15px solid #d4af37; border-radius: 5px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 20px; }
+        .cert-inner { border: 2px dashed #b8860b; padding: 30px; }
+        .cert-title { color: #8b6508; font-size: 36px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #8b6508; display: inline-block; padding-bottom: 10px; }
+        .cert-name { font-size: 28px; color: #d32f2f; margin: 20px 0; font-weight: bold; }
+        .cert-body { font-size: 18px; color: #333; line-height: 1.8; }
+        .cert-bonus { background: #d4edda; color: #155724; padding: 10px 20px; border-radius: 20px; display: inline-block; font-weight: bold; margin-top: 20px; border: 2px solid #c3e6cb; }
         `}
       </style>
       
@@ -857,7 +864,7 @@ export default function App() {
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
                 <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
                     <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
@@ -983,7 +990,7 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 
                 <div className="marquee-wrapper">
                     <div className="marquee-content">
@@ -1113,7 +1120,6 @@ export default function App() {
       {view === 'dashboard' && profileData && (
         <div style={styles.centeredGrid}>
             
-            {/* 🔥 DASHBOARD HEADER WITH LOGOUT CAREFULLY PLACED ON THE RIGHT 🔥 */}
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px'}}>
                 <div style={{textAlign: 'right'}}>
                     <h2 style={{color: '#333', margin: '0 0 5px 0'}}>ސްޓޫޑެންޓް ހަބް</h2>
@@ -1123,7 +1129,6 @@ export default function App() {
                         <span className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>🪙 {profileData.total_coins || 0}</span>
                     </div>
                 </div>
-                {/* DASHBOARD SPECIFIC LOGOUT BUTTON */}
                 <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
@@ -1139,10 +1144,11 @@ export default function App() {
                     <h3 className="ltr-text">{profileData.unlocked_badges || 0}</h3>
                     <p>ބެޖް</p>
                 </div>
-                <div className="dash-stat">
+                {/* 🔥 NEW: CLICKABLE CERTIFICATE STAT TO OPEN CERTIFICATE PAGE 🔥 */}
+                <div className="dash-stat" onClick={() => navigateTo('dashboard', 'certificates')} style={{cursor: 'pointer'}} title="ސެޓްފިކެޓް ބައްލަވާ">
                     <svg width="24" height="24" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <h3 className="ltr-text">{profileData.total_certificates || 0}</h3>
-                    <p>ސެޓްފިކެޓް</p>
+                    <p>ސެޓްފިކެޓް (ބައްލަވާ)</p>
                 </div>
             </div>
 
@@ -1150,8 +1156,7 @@ export default function App() {
             {dashView === 'overview' && (
                 <div className="dash-menu-grid animate-card">
                     
-                    {/* 🔥 THE GOLDEN VIP QURAN SLIP BUTTON 🔥 */}
-                    {isEnrolledInQuran ? (
+                    {isEnrolledInQuran && (
                         <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
                             <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -1161,7 +1166,7 @@ export default function App() {
                                 <p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p>
                             </div>
                         </div>
-                    ) : null}
+                    )}
 
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'profile')}>
                         <div className="dash-icon">
@@ -1190,6 +1195,39 @@ export default function App() {
                         </div>
                         <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ (Gift Shop)</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން އިނާމު ހޯދާ!</p></div>
                     </div>
+                </div>
+            )}
+
+            {/* 🔥 NEW VIEW: DIGITAL CERTIFICATES 🔥 */}
+            {dashView === 'certificates' && (
+                <div style={styles.card} className="animate-card">
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
+                        <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#0056b3', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
+                        <h3 style={{margin: 0}}>މަގޭ ސެޓްފިކެޓްތައް</h3>
+                    </div>
+
+                    {profileData.total_certificates > 0 ? (
+                        <div className="cert-container">
+                            <div className="cert-inner">
+                                <BrandLogo />
+                                <div className="cert-title">ޝަރަފުގެ ސެޓްފިކެޓް</div>
+                                <div className="cert-name">{profileData.student_name}</div>
+                                <div className="cert-body">
+                                    މި ސެޓްފިކެޓް ދީފައިވަނީ <b>ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގައި</b> ބައިވެރިވިކަމުގެ އަގުވަޒަންކުރުމުގެ ގޮތުންނާއި، 
+                                    މުބާރާތުގައި ދެއްކެވި ފަރުވާތެރިކަމަށްޓަކައި ހިތްވަރު ދިނުމުގެ ގޮތުންނެވެ.
+                                </div>
+                                <div className="cert-bonus">
+                                    🎉 ބޯނަސް އިނާމު: 100 🪙
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{textAlign: 'center', padding: '40px', color: '#888'}}>
+                            <svg width="48" height="48" fill="none" stroke="#ddd" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            <p>އަދި ސެޓްފިކެޓެއް ނުލިބޭ...</p>
+                            <p style={{fontSize: '12px'}}>ޕްރޮގްރާމްތަކުގައި ބައިވެރިވުމުން ސެޓްފިކެޓް ލިބޭނެއެވެ.</p>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1332,6 +1370,7 @@ export default function App() {
 
                     <div className="program-card" style={{marginBottom: '10px'}}>
                         <h4>❓ ދުވަހުގެ ކުއިޒް</h4>
+                        <p style={{fontSize: '12px', margin: '5px 0', color: '#666'}}>(2 ފަހަރު ކުޅެވޭނެ. ބާކީ: <span className="ltr-text" style={{width:'auto'}}>{2 - (profileData.quiz_attempts_today || 0)}</span>)</p>
                         <button onClick={startQuiz} style={{...styles.btn, background: '#fbc02d', color: '#333', padding: '8px', fontSize: '14px'}}>މިއަދުގެ ކުއިޒް ކުޅުއްވާ</button>
                     </div>
 
@@ -1393,7 +1432,7 @@ export default function App() {
                 <p>ކޮލިފައިވުމަށް %80 ހޯއްދަވަންޖެހޭނެ.</p>
                 <p style={{color:'green', fontSize:'13px', fontWeight: 'bold'}}>މިއަދުގެ ތާރީޚް: {getActiveQuizDate()}</p>
                 <button style={styles.btn} onClick={startQuiz} disabled={quizLoading}>{quizLoading ? 'ލޯޑުކުރަނީ...' : 'ފަށަމާ'}</button>
-                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('home')}>ކެންސަލް</button>
+                <button style={{...styles.btnSecondary, marginTop:10}} onClick={() => navigateTo('dashboard', 'programs')}>ކެންސަލް</button>
               </div>
             )}
 
