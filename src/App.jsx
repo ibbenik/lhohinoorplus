@@ -919,9 +919,9 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 <div className="marquee-wrapper">
-                    <div className="marquee-content">ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 7 އަދި 8 ގައެވެ.</div>
+                    <div className="marquee-content">.</div>
                 </div>
                 <h3>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
                 <p>ބޭނުންވަރަކަށް ފަރިތަކުރައްވާ. ޖަވާބު ފޮނުވޭނީ އެއްފަހަރު.</p>
