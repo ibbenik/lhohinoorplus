@@ -3,12 +3,55 @@ import { supabase } from './supabaseClient';
 import './App.css';
 
 // 🏅 PREMIUM SVG BADGE SETTINGS
+// 💎 BEAUTIFUL 3D GEM & MEDAL SVG GENERATORS
+const getMedalSvg = (color1, color2) => (
+    <svg width="42" height="42" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0px 4px 4px rgba(0,0,0,0.15))' }}>
+       <defs>
+          <linearGradient id={`med_${color1.replace('#','')}`} x1="0" y1="0" x2="1" y2="1">
+             <stop offset="0%" stopColor={color1}/>
+             <stop offset="100%" stopColor={color2}/>
+          </linearGradient>
+       </defs>
+       <circle cx="12" cy="12" r="10" fill={`url(#med_${color1.replace('#','')})`} stroke="#fff" strokeWidth="1" />
+       <circle cx="12" cy="12" r="7" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="2 2"/>
+       <path d="M12 7l1.5 4h4l-3 2.5 1 4-3.5-2.5-3.5 2.5 1-4-3-2.5h4z" fill="#fff" opacity="0.9"/>
+    </svg>
+);
+
+const getGemSvg = (mainColor, lightColor, darkColor) => (
+    <svg width="42" height="42" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.2))' }}>
+        <defs>
+            <linearGradient id={`gradTop_${mainColor.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={lightColor}/>
+                <stop offset="100%" stopColor={mainColor}/>
+            </linearGradient>
+            <linearGradient id={`gradBot_${mainColor.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={mainColor}/>
+                <stop offset="100%" stopColor={darkColor}/>
+            </linearGradient>
+        </defs>
+        {/* Bottom part of the gem */}
+        <polygon points="12,22 2,8 22,8" fill={`url(#gradBot_${mainColor.replace('#','')})`} />
+        {/* Top flat part of the gem */}
+        <polygon points="2,8 6,2 18,2 22,8" fill={`url(#gradTop_${mainColor.replace('#','')})`} />
+        {/* Top highlight to make it pop/3D */}
+        <polygon points="6,2 12,8 18,2" fill={lightColor} opacity="0.8" />
+        {/* Left and right shading */}
+        <polygon points="2,8 12,22 12,8" fill="#000" opacity="0.15" />
+        <polygon points="22,8 12,22 12,8" fill="#fff" opacity="0.2" />
+        <polygon points="6,2 12,8 2,8" fill="#fff" opacity="0.4" />
+    </svg>
+);
+
+// 🏅 NEW TIERED BADGE SETTINGS (LIFETIME ACHIEVEMENT)
 const BADGE_CONFIG = [
-    { id: 'starter', icon: <svg width="36" height="36" fill="none" stroke="#fbc02d" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>, name: 'ފެށުން', cost: 0 },
-    { id: 'quiz_master', icon: <svg width="36" height="36" fill="none" stroke="#9c27b0" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>, name: 'ކުއިޒް މާސްޓަރ', cost: 100 },
-    { id: 'math_genius', icon: <svg width="36" height="36" fill="none" stroke="#1976d2" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m-6 4h6m-6 4h6M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>, name: 'ސުވާލު ކީސާ', cost: 500 },
-    { id: 'quran_star', icon: <svg width="36" height="36" fill="none" stroke="#388e3c" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>, name: 'ޤާރީ', cost: 1000 },
-    { id: 'champion', icon: <svg width="36" height="36" fill="none" stroke="#d32f2f" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>, name: 'ޗެމްޕިއަން', cost: 5000 }
+    { id: 'bronze', name: 'ބްރޯންޒް', cost: 100, icon: getMedalSvg('#cd7f32', '#8b5a2b') },
+    { id: 'silver', name: 'ސިލްވަރ', cost: 150, icon: getMedalSvg('#e5e4e2', '#a9a9a9') },
+    { id: 'gold', name: 'ގޯލްޑް', cost: 200, icon: getMedalSvg('#FFDF00', '#D4AF37') },
+    { id: 'emerald', name: 'އެމަރަލްޑް', cost: 300, icon: getGemSvg('#50C878', '#98FF98', '#00A86B') },
+    { id: 'ruby', name: 'ރޫބީ', cost: 500, icon: getGemSvg('#E0115F', '#FF69B4', '#9B111E') },
+    { id: 'sapphire', name: 'ސެފަޔަރ', cost: 700, icon: getGemSvg('#0F52BA', '#7CB9E8', '#000080') },
+    { id: 'diamond', name: 'ޑައިމަންޑް', cost: 1000, icon: getGemSvg('#b9f2ff', '#ffffff', '#4bc6df') }
 ];
 
 const BrandLogo = () => (
