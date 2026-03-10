@@ -744,12 +744,11 @@ export default function App() {
         .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
         
-        .live-draw-container { text-align: center; color: white; padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow: hidden; }
-        .spinner-box { background: white; color: #333; padding: 30px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 80%; max-width: 600px; z-index: 2; position: relative; }
-        .spin-name { font-size: 60px; font-weight: bold; margin: 20px 0; color: #d32f2f; }
+       .live-draw-container { text-align: center; color: white; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow-y: auto; overflow-x: hidden; }
+        .spinner-box { background: white; color: #333; padding: 25px 15px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 95%; max-width: 600px; z-index: 2; position: relative; box-sizing: border-box; margin: auto; }
+        .spin-name { font-size: clamp(26px, 7vw, 60px); font-weight: bold; margin: 20px 0; color: #d32f2f; line-height: 1.3; word-break: break-word; padding: 0 10px; }
         .spin-name.spinning { animation: pulseText 0.2s infinite; color: #555; }
-        .live-gift-img { width: 150px; height: 150px; object-fit: contain; margin-bottom: 20px; border-bottom: 3px solid #eee; padding-bottom: 15px; }
-
+        .live-gift-img { width: clamp(100px, 30vw, 150px); height: clamp(100px, 30vw, 150px); object-fit: contain; margin-bottom: 15px; border-bottom: 3px solid #eee; padding-bottom: 15px; }
         .cert-container { background: #fff9e6; padding: 30px; border: 15px solid #d4af37; border-radius: 5px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 20px; }
         .cert-inner { border: 2px dashed #b8860b; padding: 30px; }
         .cert-title { color: #8b6508; font-size: 36px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #8b6508; display: inline-block; padding-bottom: 10px; }
