@@ -912,34 +912,47 @@ export default function App() {
 
       {view === 'info' && (
         <div style={styles.centeredContainer}>
-          <div style={styles.quizCard} className="animate-card">
-              <h2 style={{textAlign:'center', color:'#2e7d32', marginBottom:'20px'}}>މުބާރާތުގެ މަޢުލޫމާތު</h2>
+          <div style={{...styles.quizCard, maxWidth: '700px'}} className="animate-card">
+              <h2 style={{textAlign:'center', color:'#0056b3', marginBottom:'25px'}}>މުބާރާތުގެ މަޢުލޫމާތާއި ޤަވާއިދުތައް</h2>
               
-              <div className="info-section">
-                  <div className="info-title">🎁 އިނާމުތައް</div>
-                  <ul className="info-list">
-                      <li>ކޮންމެ ދުވަހެއްގެ ނަސީބުވެރިޔާއަށް: <b>100 ރުފިޔާގެ ގިފްޓް ވައުޗަރެއް</b>.</li>
-                      <li>ފިތުރު ޢީދު ދުވަހު ގުރުއަތުން ހޮވޭ ފަރާތަކަށް: <b>ބޮޑު އިނާމު</b>!</li>
+              <div className="info-section" style={{background: '#e3f2fd', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #1976d2'}}>
+                  <div className="info-title" style={{color: '#1976d2', fontSize: '18px', marginBottom: '10px'}}>🔑 1. ލޮގިން އަދި އެކައުންޓް ހެދުން</div>
+                  <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
+                      <li>ކުއިޒް ކުޅެގެން ކޮއިން ހޯދުމަށް ފުރަތަމަ ޖެހޭނީ އީމެއިލް ބޭނުންކޮށްގެން އެކައުންޓެއް ހަދާށެވެ.</li>
+                      <li>އެކައުންޓް ހެދުމަށްފަހު، <b>"ޕްރޮފައިލް"</b> ގައި ދަރިވަރުގެ ފުރިހަމަ ނަން، އައި.ޑީ ކާޑު، ގްރޭޑް އަދި ފޯނު ނަންބަރު ރަނގަޅަށް ފުރިހަމަކުރަންވާނެއެވެ.</li>
+                      <li>ކޮންމެ ދަރިވަރަކަށްވެސް ހެދޭނީ އެންމެ އެކައުންޓެކެވެ.</li>
                   </ul>
               </div>
 
-              <div className="info-section" style={{borderRightColor: '#fbc02d'}}>
-                  <div className="info-title" style={{color: '#d84315'}}>📜 ޤަވާއިދުތައް</div>
-                  <ul className="info-list">
-                      <li>ކޮންމެ ދުވަހަކުވެސް 5 ސުވާލު ހިމެނޭ ކުއިޒެއް ކުރިއަށްދާނެއެވެ.</li>
-                      <li>ގުރުއަތުގައި ބައިވެރިވެވޭނީ ކުއިޒުން <b>%80 އިން މަތި</b> ހޯދާ ފަރާތްތަކަށެވެ.</li>
-                      <li>އެއް ފޯނު ނަންބަރަކުން ދުވާލަކު ބައިވެރިވެވޭނީ އެންމެ ފަހަރަކުއެވެ.</li>
-                      <li>ފޯނު ނަންބަރު ވާންވާނީ ޞައްޙަ، ރާއްޖޭގެ ނަންބަރަކަށެވެ .</li>
-                    <li>މިއަދުގެ ސުވާލަށް މާދަމާ ނަސީބު ވެރިޔާ ހޮވަންދެން ޖަވާބު ދެވިދާނެއެވެ .</li>
-                    <li>އާ ސުވާލުތައް ފެންނާނީ ކޮންމެ ދުވަހެއްގެ  ހެދދުނު 9:30 ގެ ފަހުންނެވެ..</li>
-                    <li>މި ކުއިޒްގައި  އިނާމު ލިބޭނީ ޅޮހީގެ ރައްޔިތުންނާއި ޅޮހީގަ ދިރިއުޅޭ މިޙުންނަށެވެ. ރާއްޖޭގެ ކޮންމެ މީހަކަށްވެސް ކުއިޒްގައި ބައިވެރި ވެވޭނެއެވެ .</li>
-                    <li>ކޮންމެ ދުވަހެއްގެ ނަސީބުވެރިޔާ މިސައިޓުން ފެނިލައްވާނެއެވެ .</li>
-                    <li>ވީހާވެސް ގިނައިން ކީރިތި ޤްރުއާން ކިޔެވުމަށް ނަސޭޙަތްތެރިވަމެވެ. ސުވާލުތައް އަންނާނީ ދުވާލަކު ފޮތަކުން(ޖުޒުއު) ނެވެ .</li>
-                    <li>  ހިތަށް ފިތާލައްވައި ، ނަސީބުވެރިޔާއަށް މަރުޙަބާ ކިޔާލުން ކިހާ ރަނގަޅު!   .</li> 
+              <div className="info-section" style={{background: '#e8f5e9', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #2e7d32'}}>
+                  <div className="info-title" style={{color: '#2e7d32', fontSize: '18px', marginBottom: '10px'}}>🪙 2. ކޮއިން ހޯދާނީ ކިހިނެއް؟</div>
+                  <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
+                      <li><b>ދުވަހުގެ ކުއިޒް:</b> ކޮންމެ ދުވަހަކު 5 ސުވާލު. %80 އިން ފާސްވުމުން <b>5 ކޮއިން</b> ލިބޭނެއެވެ. ދުވާލަކު 2 ފަހަރު ކުޅެވޭނެއެވެ.</li>
+                      <li><b>ސުވާލު ކީސާ:</b> ގްރޭޑާ ގުޅޭ 5 ސުވާލު. 3 ސުވާލަށް ރަނގަޅަށް ޖަވާބު ދިނުމުން <b>5 ކޮއިން</b> ލިބޭނެއެވެ. ދުވާލަކު 5 ފަހަރު ކުޅެވޭނެއެވެ.</li>
+                      <li><b>ބޯނަސް ކޮއިން:</b> ޅޮހިނޫރު ޤުރުއާން މުބާރާތުގައި ބައިވެރިވި ކޮންމެ ކުއްޖަކަށް ހިތްވަރު ދިނުމުގެ ގޮތުން <b>100 ކޮއިން</b> ގެ ބޯނަސްއެއް ލިބޭނެއެވެ!</li>
                   </ul>
               </div>
 
-              <button onClick={() => navigateTo('home')} style={{...styles.btnSecondary, marginTop: '10px'}}>ހޯމް އަށް</button>
+              <div className="info-section" style={{background: '#fff3e0', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #ff9800'}}>
+                  <div className="info-title" style={{color: '#e65100', fontSize: '18px', marginBottom: '10px'}}>🎁 3. އިނާމު ފިހާރަ އަދި ޓިކެޓް ގަތުން</div>
+                  <p style={{fontSize: '13px', color: '#d84315', marginBottom: '10px'}}>ކޮއިން ބޭނުންކުރާނީ އިނާމު ފިހާރައިން "ގުރުއަތު ޓިކެޓް" ގަތުމަށެވެ!</p>
+                  <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
+                      <li>ބޭނުންވާ އިނާމެއްގެ ގުރުއަތުގައި ބައިވެރިވުމަށް، އެ އިނާމެއްގެ އަގަށްވާ ވަރަށް ކޮއިން ދީފައި <b>ޓިކެޓެއް</b> ގަންނަން ޖެހޭނެއެވެ.</li>
+                      <li>ޓިކެޓް ގަތުމުން އެވަރަކަށް ކޮއިން ބެލެންސް އިން ކެނޑޭނެއެވެ.</li>
+                      <li><b>ޗާންސް ބޮޑުކުރުން:</b> ކޮއިން ހުރިވަރަކުން އެއް އިނާމެއްގެ ގިނަ ޓިކެޓްވެސް ގަނެވިދާނެއެވެ. ގިނަ ޓިކެޓް ގަތް ވަރަކަށް ލައިވް ޑްރޯއިން އެ އިނާމެއް ލިބުމުގެ ފުރުޞަތު ބޮޑުވާނެއެވެ!</li>
+                  </ul>
+              </div>
+
+              <div className="info-section" style={{background: '#f9f9f9', padding: '15px', borderRadius: '10px', borderLeft: '4px solid #9e9e9e'}}>
+                  <div className="info-title" style={{color: '#616161', fontSize: '18px', marginBottom: '10px'}}>📜 4. އާންމު ޤަވާއިދުތައް</div>
+                  <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
+                      <li>އާ ސުވާލުތައް ފެންނާނީ ކޮންމެ ދުވަހެއްގެ ހެނދުނު 09:30 ގެ ފަހުންނެވެ.</li>
+                      <li>މި ޕްރޮގްރާމްތަކުގެ އިނާމު ލިބޭނީ ޅޮހީގެ ރައްޔިތުންނާއި ޅޮހީގައި ދިރިއުޅޭ ފަރާތްތަކަށެވެ. (ނަމަވެސް ރާއްޖޭގެ ކޮންމެ މީހަކަށްވެސް ކުއިޒްގައި ބައިވެރިވެވޭނެއެވެ).</li>
+                      <li>ބޮޑު ގުރުއަތުލުން ކުރިއަށް ދާނީ ލައިވްކޮށެވެ. ގުރުއަތު އެނބުރޭނީ ހަމައެކަނި އެ އިނާމެއްގެ ޓިކެޓް ގަތް ކުދިންގެ މެދުގައެވެ.</li>
+                  </ul>
+              </div>
+
+              <button onClick={() => navigateTo('home')} style={{...styles.btn, background: '#0056b3', marginTop: '20px'}}>ހޯމް ޕޭޖަށް ދޭ</button>
           </div>
         </div>
       )}
