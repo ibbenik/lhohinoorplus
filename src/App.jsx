@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import './App.css';
 
-// 🏅 PREMIUM SVG BADGE SETTINGS
 // 💎 BEAUTIFUL 3D GEM & MEDAL SVG GENERATORS
 const getMedalSvg = (color1, color2) => (
-    <svg width="42" height="42" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0px 4px 4px rgba(0,0,0,0.15))' }}>
+    <svg width="40" height="40" viewBox="0 0 24 24">
        <defs>
           <linearGradient id={`med_${color1.replace('#','')}`} x1="0" y1="0" x2="1" y2="1">
              <stop offset="0%" stopColor={color1}/>
@@ -14,12 +13,12 @@ const getMedalSvg = (color1, color2) => (
        </defs>
        <circle cx="12" cy="12" r="10" fill={`url(#med_${color1.replace('#','')})`} stroke="#fff" strokeWidth="1" />
        <circle cx="12" cy="12" r="7" fill="none" stroke="#fff" strokeWidth="1" strokeDasharray="2 2"/>
-       <path d="M12 7l1.5 4h4l-3 2.5 1 4-3.5-2.5-3.5 2.5 1-4-3-2.5h4z" fill="#fff" opacity="0.9"/>
+       <path d="M12 7l1.5 4h4l-3 2.5 1 4-3.5-2.5-3.5 2.5 1-4-3-2.5h4z" fill="#fff" opacity="0.8"/>
     </svg>
 );
 
 const getGemSvg = (mainColor, lightColor, darkColor) => (
-    <svg width="42" height="42" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0px 4px 6px rgba(0,0,0,0.2))' }}>
+    <svg width="40" height="40" viewBox="0 0 24 24">
         <defs>
             <linearGradient id={`gradTop_${mainColor.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={lightColor}/>
@@ -30,16 +29,12 @@ const getGemSvg = (mainColor, lightColor, darkColor) => (
                 <stop offset="100%" stopColor={darkColor}/>
             </linearGradient>
         </defs>
-        {/* Bottom part of the gem */}
         <polygon points="12,22 2,8 22,8" fill={`url(#gradBot_${mainColor.replace('#','')})`} />
-        {/* Top flat part of the gem */}
         <polygon points="2,8 6,2 18,2 22,8" fill={`url(#gradTop_${mainColor.replace('#','')})`} />
-        {/* Top highlight to make it pop/3D */}
-        <polygon points="6,2 12,8 18,2" fill={lightColor} opacity="0.8" />
-        {/* Left and right shading */}
+        <polygon points="6,2 12,8 18,2" fill={lightColor} opacity="0.6" />
         <polygon points="2,8 12,22 12,8" fill="#000" opacity="0.15" />
-        <polygon points="22,8 12,22 12,8" fill="#fff" opacity="0.2" />
-        <polygon points="6,2 12,8 2,8" fill="#fff" opacity="0.4" />
+        <polygon points="22,8 12,22 12,8" fill="#fff" opacity="0.15" />
+        <polygon points="6,2 12,8 2,8" fill="#fff" opacity="0.3" />
     </svg>
 );
 
@@ -279,10 +274,10 @@ export default function App() {
     if (data) {
         const isMissing = !data.id_card || data.id_card === '' || !data.parent_phone || data.parent_phone === '' || !data.parent_address || data.parent_address === '' || !data.grade || data.grade === '';
         
-        let calculatedCoins = 0;
+        let calculatedCoins = 0; // Lifetime Coins for Badges
         let totalGeneralScore = 0;
         let totalMathScore = 0;
-        let spentCoins = 0;
+        let spentCoins = 0; // Coins spent in shop on tickets
         let certCount = 0;
 
         const activeDate = getActiveQuizDate();
@@ -310,13 +305,12 @@ export default function App() {
             setMyOrders(purchaseData.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
         }
         
-        // 🔥 CERTIFICATE & BONUS LOGIC 🔥
         if (data.level && String(data.level).trim() !== '' && data.level !== 'N/A') {
-            calculatedCoins += 100; // Flat 100 coin bonus for Quran Participation
-            certCount = 1; // Unlocks 1 certificate
+            calculatedCoins += 100;
+            certCount = 1; 
         }
 
-        const currentBalance = calculatedCoins - spentCoins;
+        const currentBalance = calculatedCoins - spentCoins; // Spendable Shop Coins
 
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
         if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
@@ -327,13 +321,14 @@ export default function App() {
         const enrichedData = { 
             ...data, 
             isMissing, 
-            total_coins: currentBalance, 
+            total_coins: currentBalance, // Coins left for buying tickets
+            lifetime_coins: calculatedCoins, // Coins earned overall
             quiz_total_score: totalGeneralScore,
             math_total_score: totalMathScore,
             quiz_attempts_today: todayGenCount,
             math_attempts_today: todayMathCount,
             unlocked_badges: unlockedBadgesCount, 
-            total_certificates: certCount // Maps to the state
+            total_certificates: certCount 
         };
         
         setProfileData(enrichedData);
@@ -446,11 +441,11 @@ export default function App() {
   const handlePurchase = async (gift) => {
       if (!user || !profileData) return;
       if (profileData.total_coins < gift.cost) {
-          showToast('މި އިނާމު ގަތުމަށް ކޮއިން މަދު!', 'error');
+          showToast('މި އިނާމުގެ ޓިކެޓް ގަތުމަށް ކޮއިން މަދު!', 'error');
           return;
       }
       
-      if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
+      if (window.confirm(`ޔަޤީންތޯ ${gift.name} ގެ ގުރުއަތު ޓިކެޓެއް ގަންނަން ބޭނުންވަނީ؟ (${gift.cost} ކޮއިން ކެނޑޭނެ)`)) {
           setLoading(true);
           const { error } = await supabase.from('lhohinoor_purchases').insert([{
               user_id: user.id,
@@ -459,11 +454,11 @@ export default function App() {
               item_id: gift.id,
               item_name: gift.name,
               cost: gift.cost,
-              status: 'Pending'
+              status: 'Ticket'
           }]);
 
           if (error) { showToast('މައްސަލައެއް ދިމާވެއްޖެ: ' + error.message, 'error'); } else {
-              showToast('🎉 އިނާމު ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
+              showToast('🎉 ޓިކެޓް ގަނެވިއްޖެ! ބޮޑު ގުރުއަތުގައި ބައިވެރިވެވިއްޖެ.', 'success');
               await fetchProfileDetails(user.id); 
           }
           setLoading(false);
@@ -479,32 +474,19 @@ export default function App() {
       setLoading(false);
   };
 
+  // 🔥 NEW FAIR TICKET-BASED LIVE DRAW EXECUTOR 🔥
   const executeLiveDraw = async (gift) => {
-      const { data: allStudentData } = await supabase.from('lhohinoor_students').select('id, student_name, parent_phone, level');
-      const { data: allQuizAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('user_id, score');
-      const { data: allMathAttempts } = await supabase.from('lhohinoor_math_attempts').select('user_id, score');
-      
-      let eligibleStudents = [];
+      // Find all tickets bought specifically for THIS gift
+      const { data: ticketBuyers } = await supabase.from('lhohinoor_purchases')
+                                        .select('user_id, student_name, phone')
+                                        .eq('item_id', gift.id);
 
-      allStudentData.forEach(student => {
-          let coins = 0;
-          if (student.level) coins += 100;
-          const qAttempts = allQuizAttempts.filter(a => a.user_id === student.id);
-          coins += qAttempts.filter(a => parseInt(a.score, 10) >= 4).length * 5;
-          const mAttempts = allMathAttempts.filter(a => a.user_id === student.id);
-          coins += mAttempts.filter(a => parseInt(a.score, 10) >= 3).length * 5;
-
-          if (coins >= gift.cost) {
-              eligibleStudents.push(student);
-          }
-      });
-
-      if (eligibleStudents.length === 0) {
+      if (!ticketBuyers || ticketBuyers.length === 0) {
           setActiveDrawGift(gift);
-          setSpinName("ކޮއިން ހަމަވާ ކުއްޖަކު ނެތް! 😔");
+          setSpinName("ޓިކެޓް ގަތް ކުއްޖަކު ނެތް! 😔");
           setIsSpinning(false);
           setDrawWinnerObj(null);
-          showToast(`އެއްވެސް ކުއްޖަކަށް ${gift.cost} ކޮއިން ލިބިފައެއް ނުވޭ.`, "error");
+          showToast(`މި އިނާމުގެ ގުރުއަތުގައި ބައިވެރިވި ކުއްޖަކު ނެތް.`, "error");
           return;
       }
 
@@ -514,20 +496,21 @@ export default function App() {
 
       let counter = 0;
       const spinInterval = setInterval(() => {
-          setSpinName(eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)].student_name);
+          // If a student bought 3 tickets, their name is in the array 3 times (higher chance!)
+          setSpinName(ticketBuyers[Math.floor(Math.random() * ticketBuyers.length)].student_name);
           counter++;
           
           if (counter > 30) { 
               clearInterval(spinInterval);
-              const finalWinner = eligibleStudents[Math.floor(Math.random() * eligibleStudents.length)];
+              const finalWinner = ticketBuyers[Math.floor(Math.random() * ticketBuyers.length)];
               setSpinName(finalWinner.student_name);
-              setDrawWinnerObj(finalWinner);
+              setDrawWinnerObj({ student_name: finalWinner.student_name, parent_phone: finalWinner.phone });
               setIsSpinning(false);
               
               supabase.from('lhohinoor_daily_winners').insert([{ 
                   username: finalWinner.student_name, 
-                  phone: finalWinner.parent_phone, 
-                  score: 'Draw', 
+                  phone: finalWinner.phone, 
+                  score: 'Draw Winner', 
                   prize: `🎁 ގުރުއަތުން: ${gift.name}`, 
                   won_at: getActiveQuizDate(), 
                   congrats_count: 0, 
@@ -670,20 +653,15 @@ export default function App() {
     <div style={styles.appContainer}>
       <style>
         {`
-        /* GLOBAL FARUMA FONT OVERRIDE */
         @font-face { 
             font-family: 'Faruma'; 
             src: local('Faruma'), url('/faruma.ttf') format('truetype'), url('/Faruma.ttf') format('truetype'); 
             font-display: swap; 
         }
-        
         body, html, #root, div, span, h1, h2, h3, h4, p, a, button, input, select, textarea, table, th, td {
             font-family: 'Faruma', Arial, sans-serif !important;
         }
-
-        .ltr-text, .ltr-text * {
-            font-family: Arial, sans-serif !important;
-        }
+        .ltr-text, .ltr-text * { font-family: Arial, sans-serif !important; }
 
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
@@ -692,7 +670,6 @@ export default function App() {
         @keyframes badgePop { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
         @keyframes pulseText { 0% { transform: scale(1); } 50% { transform: scale(1.05); color: #d32f2f; } 100% { transform: scale(1); } }
         
-        /* CLEAN HEART ANIMATION */
         @keyframes floatHeart { 
             0% { transform: translate(0, 0) scale(0.5); opacity: 0; } 
             20% { transform: translate(calc(var(--tx) * 0.3px), -20px) scale(1.2); opacity: 1; } 
@@ -773,7 +750,6 @@ export default function App() {
         .spin-name.spinning { animation: pulseText 0.2s infinite; color: #555; }
         .live-gift-img { width: 150px; height: 150px; object-fit: contain; margin-bottom: 20px; border-bottom: 3px solid #eee; padding-bottom: 15px; }
 
-        /* 🔥 CERTIFICATE DESIGN 🔥 */
         .cert-container { background: #fff9e6; padding: 30px; border: 15px solid #d4af37; border-radius: 5px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-top: 20px; }
         .cert-inner { border: 2px dashed #b8860b; padding: 30px; }
         .cert-title { color: #8b6508; font-size: 36px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #8b6508; display: inline-block; padding-bottom: 10px; }
@@ -783,7 +759,6 @@ export default function App() {
         `}
       </style>
       
-      {/* 🚀 GLOBAL TOAST NOTIFICATION 🚀 */}
       {appMessage.show && (
           <div className={`app-toast ${appMessage.type}`}>
               <span>{appMessage.type === 'error' ? '⚠️' : appMessage.type === 'warning' ? '🛑' : '✅'}</span>
@@ -791,7 +766,6 @@ export default function App() {
           </div>
       )}
 
-      {/* 🎉 BADGE CELEBRATION MODAL 🎉 */}
       {celebrationBadge && (
           <div className="celebration-overlay" onClick={() => setCelebrationBadge(null)}>
               <div className="rays-bg"></div>
@@ -805,13 +779,12 @@ export default function App() {
           </div>
       )}
 
-      {/* 🎁 NEW GIFT UNLOCK CELEBRATION MODAL 🎁 */}
       {celebrationGift && (
           <div className="celebration-overlay" onClick={() => setCelebrationGift(null)}>
               <div className="rays-bg"></div>
               <div className="badge-showcase" onClick={e => e.stopPropagation()}>
                   <h2 style={{color: '#ff9800', margin: '0 0 10px 0'}}>🎉 އައު އިނާމެއް!</h2>
-                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމު ގަނެވޭނެ!</p>
+                  <p style={{color: '#555', fontSize: '14px', margin: '0 0 20px 0'}}>ކޮއިން ހަމަވެއްޖެ، މިހާރު މި އިނާމުގެ ޓިކެޓް ގަނެވޭނެ!</p>
                   <div style={{width: '120px', height: '120px', margin: '20px auto', borderRadius: '15px', overflow: 'hidden', border: '3px solid #ff9800', boxShadow: '0 10px 20px rgba(255,152,0,0.3)'}}>
                       <img src={celebrationGift.image_url} alt={celebrationGift.name} loading="lazy" style={{width: '100%', height: '100%', objectFit: 'contain', padding: '10px'}} />
                   </div>
@@ -821,7 +794,6 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 THE NEW LIVE DRAW PORTAL VIEW 🔥 */}
       {view === 'live_draw' && (
           <div className="live-draw-container">
               <div className="rays-bg" style={{opacity: 0.3}}></div>
@@ -844,13 +816,13 @@ export default function App() {
                   </>
               )}
 
-              {(isSpinning || drawWinnerObj || spinName.includes('ކޮއިން ހަމަވާ')) && (
+              {(isSpinning || drawWinnerObj || spinName.includes('ކުއްޖަކު ނެތް')) && (
                   <div className="spinner-box animate-card">
                       {activeDrawGift && <img src={activeDrawGift.image_url} alt="Gift" className="live-gift-img" />}
                       <h2 style={{color: '#0056b3', margin: 0}}>{activeDrawGift?.name}</h2>
-                      <p style={{color: '#666', marginTop: '5px'}}>{spinName.includes('ކޮއިން ހަމަވާ') ? 'ނަތީޖާ:' : 'ނަސީބުވެރިޔާ:'}</p>
+                      <p style={{color: '#666', marginTop: '5px'}}>{spinName.includes('ކުއްޖަކު ނެތް') ? 'ނަތީޖާ:' : 'ނަސީބުވެރިޔާ:'}</p>
                       
-                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`} style={{ fontSize: spinName.includes('ކޮއިން ހަމަވާ') ? '30px' : '60px' }}>
+                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`} style={{ fontSize: spinName.includes('ކުއްޖަކު ނެތް') ? '30px' : '60px' }}>
                           {spinName}
                       </div>
 
@@ -863,8 +835,7 @@ export default function App() {
                           </>
                       )}
 
-                      {/* If no one eligible, show a close button */}
-                      {!isSpinning && !drawWinnerObj && spinName.includes('ކޮއިން ހަމަވާ') && (
+                      {!isSpinning && !drawWinnerObj && spinName.includes('ކުއްޖަކު ނެތް') && (
                           <div style={{marginTop: '30px'}}>
                               <button onClick={() => { setActiveDrawGift(null); setSpinName("ނަސީބުވެރިޔާ ހޯދަނީ..."); }} style={{...styles.btnSecondary, background: '#666', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>ފަހަތަށް</button>
                           </div>
@@ -874,7 +845,6 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 CLEAN PROFESSIONAL NAVBAR (ONLY SHOWS IF NOT IN LIVE DRAW) 🔥 */}
       {view !== 'live_draw' && (
           <div className="main-navbar">
             <div className="brand-logo" style={{cursor: 'pointer', fontSize: '24px'}} onClick={() => navigateTo('home')}>
@@ -902,17 +872,12 @@ export default function App() {
           </div>
       )}
 
-      {/* 🔥 NEW PUBLIC SHOP VIEW 🔥 */}
       {view === 'public_shop' && (
         <div style={styles.centeredContainer}>
             <div style={{...styles.card, background: '#fffde7', width: '100%', maxWidth: '900px'}} className="animate-card">
                 <h2 style={{color: '#f57f17', textAlign: 'center', margin: '0 0 10px 0', fontSize: '28px'}}>🎁 އިނާމު ފިހާރަ</h2>
-                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '30px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
+                <p style={{fontSize: '15px', color: '#555', textAlign: 'center', marginBottom: '20px'}}>ކުއިޒް ކުޅެގެން ކޮއިން ހޯއްދަވާ، އަދި ބޮޑު ގުރުއަތުގައި ބައިވެރިވެލައްވާ!</p>
                 
-                <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                    <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
-                </div>
-
                 <div className="gift-grid">
                     {allGifts.map(gift => (
                         <div key={gift.id} className="gift-card">
@@ -930,7 +895,6 @@ export default function App() {
         </div>
       )}
 
-      {/* PARTNER FORM FIX */}
       {view === 'partner_form' && (
           <div style={styles.centeredContainer}>
             <div style={styles.quranCard} className="animate-card">
@@ -1016,7 +980,6 @@ export default function App() {
             </div>
           ) : null}
 
-          {/* 🔥 MONTHLY WINNERS SHOWCASE 🔥 */}
           {monthlyWinners && monthlyWinners.length > 0 && (
               <div style={{background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', marginBottom: '20px', textAlign: 'center'}}>
                   <h3 style={{color: '#ff9800', margin: '0 0 15px 0'}}>🏆 ގުރުއަތުގެ ނަސީބުވެރިން 🏆</h3>
@@ -1070,7 +1033,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 🔒 AUTHENTICATION 🔒 */}
       {view === 'auth' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quranCard}>
@@ -1114,7 +1076,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 🛑 THE GATEKEEPER: FORCED PROFILE SETUP 🛑 */}
       {view === 'profile_setup' && profileData && (
           <div style={styles.centeredContainer}>
               <div style={styles.quranCard} className="animate-card">
@@ -1175,7 +1136,7 @@ export default function App() {
                 <button onClick={handleLogout} className="nav-btn-danger" style={{padding: '8px 15px', marginTop: '5px'}}>ލޮގްއައުޓް</button>
             </div>
 
-            {/* GAMIFICATION TOP BAR WITH SVGS */}
+            {/* GAMIFICATION TOP BAR */}
             <div className="dash-topbar animate-card">
                 <div className="dash-stat">
                     <svg width="24" height="24" fill="none" stroke="#FFD700" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v8m-3-4h6"/></svg>
@@ -1187,7 +1148,6 @@ export default function App() {
                     <h3 className="ltr-text">{profileData.unlocked_badges || 0}</h3>
                     <p>ބެޖް</p>
                 </div>
-                {/* 🔥 NEW: CLICKABLE CERTIFICATE STAT TO OPEN CERTIFICATE PAGE 🔥 */}
                 <div className="dash-stat" onClick={() => navigateTo('dashboard', 'certificates')} style={{cursor: 'pointer'}} title="ސެޓްފިކެޓް ބައްލަވާ">
                     <svg width="24" height="24" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <h3 className="ltr-text">{profileData.total_certificates || 0}</h3>
@@ -1236,12 +1196,12 @@ export default function App() {
                         <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}>
                             <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>
                         </div>
-                        <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ (Gift Shop)</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން އިނާމު ހޯދާ!</p></div>
+                        <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ (ގުރުއަތު ޓިކެޓް)</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން ގުރުއަތު ޓިކެޓް ގަންނަވާ!</p></div>
                     </div>
                 </div>
             )}
 
-            {/* 🔥 NEW VIEW: DIGITAL CERTIFICATES 🔥 */}
+            {/* 🔥 VIEW: DIGITAL CERTIFICATES 🔥 */}
             {dashView === 'certificates' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1274,7 +1234,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: MY PROFILE */}
             {dashView === 'profile' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1315,7 +1274,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: MY PROGRESS & REWARDS (WITH LIVE LEADERBOARDS) */}
             {dashView === 'progress' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1330,23 +1288,24 @@ export default function App() {
                         <p style={{margin: '5px 0', fontSize: '14px'}}><b>ޤުރުއާން މާކްސް:</b> <span className="ltr-text" style={{width:'auto', color:'#000'}}>{profileData.marks || 'ނުލިބޭ'}</span></p>
                     </div>
 
+                    {/* 🔥 3D BADGES SHOWCASE 🔥 */}
                     <div className="program-card" style={{marginBottom: '10px'}}>
-                        <h4 style={{margin: '0 0 10px 0', color: '#fbc02d'}}>🏅 އަންލޮކްވެފައިވާ ބެޖްތައް</h4>
+                        <h4 style={{margin: '0 0 10px 0', color: '#fbc02d'}}>🏅 ލައިފްޓައިމް ބެޖްތައް</h4>
+                        <p style={{fontSize: '11px', color: '#666', marginTop: 0}}>މިއީ މިހާތަނަށް ލިބުނު ޖުމްލަ ކޮއިން (<span className="ltr-text">{profileData.lifetime_coins}</span>) އަށް ބަލައިގެން ދެވޭ ޝަރަފެކެވެ.</p>
                         <div className="badge-grid">
                             {BADGE_CONFIG.map(badge => {
-                                const isUnlocked = (profileData.total_coins || 0) >= badge.cost;
+                                const isUnlocked = (profileData.lifetime_coins || 0) >= badge.cost;
                                 return (
                                     <div key={badge.id} className={`badge-item ${isUnlocked ? 'badge-unlocked' : 'badge-locked'}`} title={badge.name}>
-                                        <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '40px'}}>{badge.icon}</div>
-                                        <span style={{fontSize: '9px', marginTop:'5px', fontWeight: 'bold', textAlign:'center'}}>{badge.name}</span>
-                                        {!isUnlocked && <span className="ltr-text" style={{fontSize: '10px', color:'#d32f2f', fontWeight:'bold', marginTop:'2px'}}>🔒 {badge.cost} 🪙</span>}
+                                        <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50px'}}>{badge.icon}</div>
+                                        <span style={{fontSize: '10px', marginTop:'5px', fontWeight: 'bold', textAlign:'center'}}>{badge.name}</span>
+                                        {!isUnlocked && <span className="ltr-text" style={{fontSize: '9px', color:'#d32f2f', fontWeight:'bold', marginTop:'2px'}}>🔒 {badge.cost} 🪙</span>}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
 
-                    {/* 🔥 BOTH LEADERBOARDS EMBEDDED IN PROGRESS PAGE 🔥 */}
                     <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: '#f9f9f9'}}>
                         <h4 style={{margin: '0 0 10px 0', color: '#0056b3', borderBottom: '1px solid #ddd', paddingBottom: '5px'}}>🏆 މިއަދުގެ ކުއިޒް ލީޑަރބޯޑު <span className="ltr-text" style={{fontSize: '12px', width: 'auto'}}>({getActiveQuizDate()})</span></h4>
                         {leaderboard.length > 0 ? leaderboard.map((l, i) => (
@@ -1364,7 +1323,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: DIGITAL GIFT SHOP FOR LOGGED IN USER */}
+            {/* 🔥 NEW FAIR GIFT TICKET SHOP 🔥 */}
             {dashView === 'gift_shop' && (
                 <div style={{...styles.card, background: '#fffde7'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fbc02d', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1373,28 +1332,41 @@ export default function App() {
                     </div>
                     
                     <div style={{background: 'white', padding: '10px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ކޮއިން:</span>
+                        <span style={{color: '#555', fontSize: '14px', fontWeight: 'bold'}}>މަގޭ ބެލެންސް:</span>
                         <span className="ltr-text" style={{color: '#ff9800', fontSize: '18px', fontWeight: 'bold', width:'auto'}}>{profileData.total_coins || 0} 🪙</span>
                     </div>
 
-                    <div style={{background: '#fff3cd', padding: '10px', borderRadius: '10px', display: 'inline-block', marginBottom: '20px', border: '1px solid #ffeeba'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#856404'}}>💡 <b>ސަމާލުކަމަށް:</b> ކޮއިން ހަމަވުމުން، އެ އިނާމެއްގެ ބޮޑު ގުރުއަތުގައި އޮޓޯއިން ބައިވެރިވެވޭނެއެވެ!</p>
+                    <div style={{background: '#fff3cd', padding: '15px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #ffeeba', textAlign: 'right'}}>
+                        <p style={{margin: 0, fontSize: '13px', color: '#856404', lineHeight: '1.6'}}>
+                            💡 <b>ގުރުއަތު ޓިކެޓް:</b> ބޭނުންވާ އިނާމެއްގެ ގުރުއަތުގައި ބައިވެރިވުމަށް އެ އިނާމެއްގެ ޓިކެޓެއް ގަންނަވާ! ޓިކެޓް ގަންނަ ވަރަކަށް އެ އިނާމެއް ލިބުމުގެ ޗާންސް ބޮޑުވާނެއެވެ. ޓިކެޓް ގަތުމުން ބެލެންސް އިން ކޮއިން ކެނޑޭނެއެވެ.
+                        </p>
                     </div>
 
                     <div className="gift-grid">
                         {allGifts.map(gift => {
                             const canAfford = (profileData.total_coins || 0) >= gift.cost;
+                            const myTickets = myOrders.filter(o => o.item_id === gift.id).length;
                             return (
-                                <div key={gift.id} className="gift-card" style={{border: canAfford ? '2px solid #4caf50' : '2px solid #fff3e0'}}>
+                                <div key={gift.id} className="gift-card" style={{border: myTickets > 0 ? '2px solid #4caf50' : '2px solid #fff3e0'}}>
                                     <div className="gift-image-container">
                                         <img src={gift.image_url} alt={gift.name} loading="lazy" decoding="async" />
                                     </div>
                                     <h4 style={{margin: '0 0 5px 0', fontSize: '13px', lineHeight: '1.3'}}>{gift.name}</h4>
-                                    <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '12px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
+                                    <p className="ltr-text" style={{margin: '0 0 10px 0', fontSize: '13px', color: '#ff9800', fontWeight: 'bold', width:'auto'}}>{gift.cost} 🪙</p>
                                     
-                                    <div style={{padding: '5px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold', background: canAfford ? '#e8f5e9' : '#f5f5f5', color: canAfford ? '#2e7d32' : '#999', width: '100%', boxSizing: 'border-box'}}>
-                                        {canAfford ? '✅ ގުރުއަތުގައި ހިމެނިއްޖެ' : '🔒 ކޮއިން މަދު'}
-                                    </div>
+                                    {myTickets > 0 && (
+                                        <div style={{background: '#e8f5e9', color: '#2e7d32', padding: '4px 8px', borderRadius: '15px', fontSize: '11px', fontWeight: 'bold', marginBottom: '10px', width: '100%', boxSizing: 'border-box'}}>
+                                            🎟️ މަގޭ ޓިކެޓް: <span className="ltr-text">{myTickets}</span>
+                                        </div>
+                                    )}
+
+                                    <button 
+                                        onClick={() => handlePurchase(gift)} 
+                                        style={{...styles.btn, background: canAfford ? '#ff9800' : '#f5f5f5', color: canAfford ? 'white' : '#999', padding: '8px', fontSize: '12px', width: '100%', boxSizing: 'border-box'}}
+                                        disabled={!canAfford}
+                                    >
+                                        {canAfford ? '+ ޓިކެޓް ގަންނަވާ' : '🔒 ކޮއިން މަދު'}
+                                    </button>
                                 </div>
                             );
                         })}
@@ -1403,7 +1375,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: PROGRAMS & CLASSES */}
             {dashView === 'programs' && (
                 <div style={styles.card} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px'}}>
@@ -1430,7 +1401,6 @@ export default function App() {
                 </div>
             )}
 
-            {/* VIEW: QURAN SLIP (THE VIP TABLE) */}
             {dashView === 'quran_slip' && profileData && (
                 <div style={{width: '100%', maxWidth: '500px', margin: '0 auto'}}>
                     <div style={{ background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)', border: '2px solid #0056b3', borderRadius: '12px', padding: '25px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', position: 'relative', overflow: 'hidden' }} className="animate-card">
@@ -1461,14 +1431,12 @@ export default function App() {
         </div>
       )}
 
-      {/* 🎮 GENERAL QUIZ EXPERIENCE 🎮 */}
       {view === 'quiz' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quizCard} className="animate-card">
             
             <BrandLogo />
 
-            {/* 🔥 RESTORED QUIZ INTRO SCREEN 🔥 */}
             {quizState === 'intro' && (
               <div style={{textAlign:'right'}}>
                 <h2 style={{color: '#0056b3'}}>❓ ޅޮހިނޫރު ސުވާލު މުބާރާތް</h2>
@@ -1525,14 +1493,12 @@ export default function App() {
         </div>
       )}
 
-      {/* 🧮 MATH QUIZ EXPERIENCE 🧮 */}
       {view === 'math_quiz' && (
         <div style={styles.centeredContainer}>
           <div style={styles.quizCard} className="animate-card">
             
             <BrandLogo />
 
-            {/* 🔥 RESTORED MATH INTRO SCREEN 🔥 */}
             {mathState === 'intro' && (
               <div style={{textAlign:'right'}}>
                 <h2 style={{color: '#1976d2'}}>🧮 ސުވާލު ކީސާ</h2>
@@ -1638,7 +1604,6 @@ export default function App() {
   );
 }
 
-// 🔥 SHOP ADMIN PANEL (DEDICATED FOR SHOP STAFF) 🔥
 function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogout, styles, showToast }) {
     const [shopTab, setShopTab] = useState('orders');
 
@@ -1667,14 +1632,15 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
             </div>
             
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
-                <button style={{...styles.tab, borderBottom: shopTab==='orders'?'3px solid #ff9800':'none', color: shopTab==='orders'?'#ff9800':''}} onClick={()=>setShopTab('orders')}>އިނާމު އޯޑަރުތައް</button>
+                <button style={{...styles.tab, borderBottom: shopTab==='orders'?'3px solid #ff9800':'none', color: shopTab==='orders'?'#ff9800':''}} onClick={()=>setShopTab('orders')}>ގުރުއަތު ޓިކެޓް އޯޑަރުތައް</button>
                 <button style={{...styles.tab, borderBottom: shopTab==='vouchers'?'3px solid #ff9800':'none', color: shopTab==='vouchers'?'#ff9800':''}} onClick={()=>setShopTab('vouchers')}>ކުއިޒް ވައުޗަރުތައް</button>
             </div>
 
             {shopTab === 'orders' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                    <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކުދިން ގަނެފައިވާ ގުރުއަތު ޓިކެޓްތަކުގެ ލިސްޓު (މިއީ ލައިވް ޑްރޯއަށް ބޭނުންކުރެވޭނެ ލިސްޓެކެވެ).</p>
                     <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ކޮއިން</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
+                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>ޓިކެޓް ގަތް އިނާމު</th><th>ކޮއިން</th></tr></thead>
                         <tbody>
                             {shopOrders.length > 0 ? shopOrders.map(o => (
                                 <tr key={o.id}>
@@ -1683,16 +1649,8 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
                                     <td className="ltr-text">{o.phone}</td>
                                     <td>{o.item_name}</td>
                                     <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
-                                    <td style={{color: o.status === 'Pending' ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{o.status === 'Pending' ? 'ނުދީ' : 'ދީފި'}</td>
-                                    <td>
-                                        {o.status === 'Pending' ? (
-                                            <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverOrder(o.id)}>ދީފިން (Deliver)</button>
-                                        ) : (
-                                            <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
-                                        )}
-                                    </td>
                                 </tr>
-                            )) : <tr><td colSpan="7" style={{textAlign: 'center', padding: '20px'}}>އަދި އޯޑަރެއް ނެތް</td></tr>}
+                            )) : <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>އަދި ޓިކެޓެއް ނުވިކޭ</td></tr>}
                         </tbody>
                     </table>
                 </div>
@@ -1729,7 +1687,6 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
     );
 }
 
-// INLINED MAIN ADMIN PANEL
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
     winnerDate, setWinnerDate, loadAdminData, getActiveQuizDate, 
@@ -1862,23 +1819,22 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* GIFTS ADMIN TAB WITH FAIR DRAW BUTTONS */}
             {adminTab === 'gifts' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <div style={{background: '#e3f2fd', padding: '15px', borderRadius: '8px', marginBottom: '20px', borderLeft: '4px solid #1976d2'}}>
-                        <p style={{margin: 0, fontSize: '13px', color: '#0056b3'}}>ℹ️ <b>މަޢުލޫމާތު:</b> ގުރުއަތު ނެގޭނީ މި އިނާމު ގަންނަން ބޭނުންވާ އަދަދަށް (އެބަހީ އެ ބެޖެއް ލިބިފައިވާ) ކޮއިން ހޯދާފައިވާ ހުރިހާ ދަރިވަރުންގެ މެދުގައެވެ.</p>
+                        <p style={{margin: 0, fontSize: '13px', color: '#0056b3'}}>ℹ️ <b>މަޢުލޫމާތު:</b> ގުރުއަތު ނެގޭނީ މި އިނާމުގެ "ޓިކެޓް" ގަނެފައިވާ ކުދިންގެ މެދުގައެވެ. އެއް ކުއްޖަކަށް އެއް އިނާމެއްގެ ގިނަ ޓިކެޓްވެސް ގަނެވިދާނެއެވެ (ޗާންސް ބޮޑުވާނެއެވެ).</p>
                     </div>
 
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
                         <h3 style={{color: '#e65100', marginTop: 0}}>އައު އިނާމެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="އިނާމުގެ ނަން" style={styles.input} required />
-                        <input name="cost" type="number" placeholder="އަގު (ކޮއިން)" style={styles.inputLtr} required />
+                        <input name="cost" type="number" placeholder="ޓިކެޓެއްގެ އަގު (ކޮއިން)" style={styles.inputLtr} required />
                         <input name="image_url" placeholder="ފޮޓޯ ލިންކް (Image URL)" style={styles.inputLtr} required />
                         <button type="submit" style={{...styles.btn, background: '#ff9800', maxWidth: '200px'}}>އިތުރުކުރޭ</button>
                     </form>
 
                     <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ފޮޓޯ</th><th>ނަން</th><th>އަގު</th><th>ކަންތައް</th></tr></thead>
+                        <thead><tr><th>ފޮޓޯ</th><th>ނަން</th><th>ޓިކެޓެއްގެ އަގު</th><th>ކަންތައް</th></tr></thead>
                         <tbody>{allGifts.map(g => (
                             <tr key={g.id}>
                                 <td><img src={g.image_url} alt={g.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #ddd' }} /></td>
@@ -1922,7 +1878,6 @@ function AdminPanel({
     );
 }
 
-// --- STYLES ---
 const styles = {
   appContainer: { minHeight: '100vh', background: '#f0f4f8', direction: 'rtl', textAlign: 'right' },
   container: { padding: '20px', maxWidth: '1400px', margin: '0 auto' },
