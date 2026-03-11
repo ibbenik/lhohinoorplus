@@ -114,7 +114,7 @@ export default function App() {
 
   const [myOrders, setMyOrders] = useState([]);
 
-  // 🔥 NEW ADMIN & BONUS STATES 🔥
+  // App Settings (Disabled Bonus logic for now, but keeping state so it doesn't break)
   const [appSettings, setAppSettings] = useState({ read_text: 'މިއަދުގެ ޙަދީޘް: ...', read_coins: 10, puzzle_image_url: '', puzzle_answer: '', puzzle_coins: 30 });
   const [todayClaims, setTodayClaims] = useState([]);
   const [puzzleInput, setPuzzleInput] = useState('');
@@ -200,34 +200,22 @@ export default function App() {
 
         const activeDate = getActiveQuizDate();
 
-        // 1. Fetch Quiz Attempts
         const { data: genAttempts } = await supabase.from('lhohinoor_quiz_attempts').select('score, created_at').eq('user_id', userId);
         if (genAttempts && genAttempts.length > 0) {
             totalGeneralScore = genAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
             const passedGeneral = genAttempts.filter(a => parseInt(a.score, 10) >= 4).length;
             calculatedCoins += (passedGeneral * 5);
 
-            // 🔥 CALCULATE REAL STREAK 🔥
             const uniqueDates = [...new Set(genAttempts.map(a => a.created_at))].sort().reverse();
             let checkDate = new Date(activeDate);
-            
-            // If haven't played today yet, start checking from yesterday
-            if (!uniqueDates.includes(activeDate)) {
-                checkDate.setDate(checkDate.getDate() - 1);
-            }
+            if (!uniqueDates.includes(activeDate)) checkDate.setDate(checkDate.getDate() - 1);
 
             while(true) {
                 const dStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-                if (uniqueDates.includes(dStr)) {
-                    currentStreak++;
-                    checkDate.setDate(checkDate.getDate() - 1);
-                } else {
-                    break;
-                }
+                if (uniqueDates.includes(dStr)) { currentStreak++; checkDate.setDate(checkDate.getDate() - 1); } else break;
             }
         }
 
-        // 2. Fetch Math Attempts
         const { data: mathAttempts } = await supabase.from('lhohinoor_math_attempts').select('score, created_at').eq('user_id', userId);
         if (mathAttempts) {
             totalMathScore = mathAttempts.reduce((sum, a) => sum + (parseInt(a.score, 10) || 0), 0);
@@ -235,19 +223,15 @@ export default function App() {
             calculatedCoins += (passedMath * 5);
         }
 
-        // 3. Fetch Bonus Claims
         const { data: claimsData } = await supabase.from('lhohinoor_bonus_claims').select('*').eq('user_id', userId);
         if (claimsData) {
-            // Add approved bonus coins
             calculatedCoins += claimsData.filter(c => c.status === 'Approved').reduce((sum, c) => sum + c.coins_awarded, 0);
-            // Save today's claims to state
             setTodayClaims(claimsData.filter(c => c.claim_date === activeDate));
         }
 
         const todayGenCount = genAttempts ? genAttempts.filter(a => a.created_at === activeDate).length : 0;
         const todayMathCount = mathAttempts ? mathAttempts.filter(a => a.created_at === activeDate).length : 0;
 
-        // 4. Fetch Purchases
         const { data: purchaseData } = await supabase.from('lhohinoor_purchases').select('*').eq('user_id', userId);
         if (purchaseData) {
             spentCoins = purchaseData.reduce((sum, p) => sum + (parseInt(p.cost, 10) || 0), 0);
@@ -255,13 +239,11 @@ export default function App() {
         }
         
         if (data.level && String(data.level).trim() !== '' && data.level !== 'N/A') {
-            calculatedCoins += 100;
-            certCount = 1; 
+            calculatedCoins += 100; certCount = 1; 
         }
 
         const currentBalance = calculatedCoins - spentCoins; 
 
-        // Badge Calculations
         const unlockedBadgesCount = BADGE_CONFIG.filter(b => calculatedCoins >= b.cost).length;
         if (prevBadgeCountRef.current > 0 && unlockedBadgesCount > prevBadgeCountRef.current) {
             setCelebrationBadge(BADGE_CONFIG[unlockedBadgesCount - 1]);
@@ -292,40 +274,23 @@ export default function App() {
     }
   };
 
-  // 🔥 BONUS HUB CLAIM HANDLERS 🔥
   const handleBonusClaim = async (taskType, coins, extraInfo = '') => {
-      if (todayClaims.some(c => c.task_type === taskType && c.status !== 'Rejected')) {
-          showToast('މިއަދުގެ މި ޓާސްކް ފުރިހަމަކޮށްފިން!', 'warning'); return;
-      }
+      if (todayClaims.some(c => c.task_type === taskType && c.status !== 'Rejected')) { showToast('މިއަދުގެ މި ޓާސްކް ފުރިހަމަކޮށްފިން!', 'warning'); return; }
       setLoading(true);
       const isPending = taskType.startsWith('behavior');
       const actualTaskType = isPending ? `behavior: ${extraInfo}` : taskType;
       
-      const { error } = await supabase.from('lhohinoor_bonus_claims').insert({ 
-          user_id: user.id, 
-          task_type: actualTaskType, 
-          claim_date: getActiveQuizDate(), 
-          coins_awarded: coins, 
-          status: isPending ? 'Pending' : 'Approved' 
-      });
-
+      const { error } = await supabase.from('lhohinoor_bonus_claims').insert({ user_id: user.id, task_type: actualTaskType, claim_date: getActiveQuizDate(), coins_awarded: coins, status: isPending ? 'Pending' : 'Approved' });
       if (!error) {
-          if (isPending) showToast('ހުށަހެޅިއްޖެ! އެޕްރޫވް ވުމުން ކޮއިން ލިބޭނެ.', 'success');
-          else showToast(`🎉 ${coins} ކޮއިން ލިބިއްޖެ!`, 'success');
+          if (isPending) showToast('ހުށަހެޅިއްޖެ! އެޕްރޫވް ވުމުން ކޮއިން ލިބޭނެ.', 'success'); else showToast(`🎉 ${coins} ކޮއިން ލިބިއްޖެ!`, 'success');
           await fetchProfileDetails(user.id);
-      } else {
-          showToast('މައްސަލައެއް ދިމާވެއްޖެ.', 'error');
-      }
+      } else { showToast('މައްސަލައެއް ދިމާވެއްޖެ.', 'error'); }
       setLoading(false);
   };
 
   const submitPuzzle = async () => {
       if (!puzzleInput) return;
-      if (puzzleInput.trim().toLowerCase() === appSettings.puzzle_answer.trim().toLowerCase()) {
-          handleBonusClaim('puzzle', appSettings.puzzle_coins);
-      } else {
-          showToast('ޖަވާބު ނުބައި! އަލުން މަސައްކަތްކުރައްވާ.', 'error');
-      }
+      if (puzzleInput.trim().toLowerCase() === appSettings.puzzle_answer.trim().toLowerCase()) { handleBonusClaim('puzzle', appSettings.puzzle_coins); } else { showToast('ޖަވާބު ނުބައި! އަލުން މަސައްކަތްކުރައްވާ.', 'error'); }
   };
 
   const showToast = (text, type = 'error') => {
@@ -365,9 +330,7 @@ export default function App() {
     const shareUrl = 'https://lhohinoor.com';
     if (navigator.share) {
         try { await navigator.share({ title: 'ޅޮހިނޫރު މިއަދުގެ ނަސީބުވެރިޔާ', text: shareText, url: shareUrl }); } catch (err) { console.log('ޝެއަރ ކެންސަލް ކުރެވިއްޖެ'); }
-    } else {
-        navigator.clipboard.writeText(`${shareText}\n${shareUrl}`); alert('މެސެޖާއި ލިންކް ކޮޕީ ކުރެވިއްޖެ! ޕޭސްޓް ކުރައްވާ.');
-    }
+    } else { navigator.clipboard.writeText(`${shareText}\n${shareUrl}`); alert('މެސެޖާއި ލިންކް ކޮޕީ ކުރެވިއްޖެ! ޕޭސްޓް ކުރައްވާ.'); }
   };
 
   const fetchLatestWinner = async () => {
@@ -405,11 +368,8 @@ export default function App() {
     fetchGifts();
     const { data: r } = await supabase.from('lhohinoor_partner_requests').select('*');
     setPartnerRequestsList(r || []);
-    
-    // Fetch pending claims
     const { data: pClaims } = await supabase.from('lhohinoor_bonus_claims').select('*').eq('status', 'Pending');
     setPendingClaims(pClaims || []);
-    
     setLoading(false);
   };
 
@@ -680,6 +640,7 @@ export default function App() {
         .marquee-wrapper { width: 100%; overflow: hidden; background: #e3f2fd; padding: 8px 0; border-radius: 5px; margin-bottom: 10px; position: relative; white-space: nowrap; display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 100%; animation: scrollMarquee 15s linear infinite; color: #0056b3; font-size: 14px; font-weight: bold; }
         
+        /* 🔥 RESPONSIVE LIVE DRAW STYLES 🔥 */
         .live-draw-container { text-align: center; color: white; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle, #0056b3 0%, #001f3f 100%); width: 100vw; position: fixed; top: 0; left: 0; z-index: 10000; overflow-y: auto; overflow-x: hidden; }
         .spinner-box { background: white; color: #333; padding: 25px 15px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 95%; max-width: 600px; z-index: 2; position: relative; box-sizing: border-box; margin: auto; }
         .spin-name { font-size: clamp(26px, 7vw, 60px); font-weight: bold; margin: 20px 0; color: #d32f2f; line-height: 1.3; word-break: break-word; padding: 0 10px; }
@@ -692,6 +653,39 @@ export default function App() {
         .cert-name { font-size: 28px; color: #d32f2f; margin: 20px 0; font-weight: bold; }
         .cert-body { font-size: 18px; color: #333; line-height: 1.8; }
         .cert-bonus { background: #d4edda; color: #155724; padding: 10px 20px; border-radius: 20px; display: inline-block; font-weight: bold; margin-top: 20px; border: 2px solid #c3e6cb; }
+
+        /* 🔥 NEW TABLE WRAPPER FOR SCROLLING FIX 🔥 */
+        .table-wrapper {
+            width: 100%;
+            max-height: 65vh; /* Fits nicely inside the screen */
+            overflow-y: auto;
+            overflow-x: auto;
+            border-radius: 8px;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+            background: white;
+            border: 1px solid #eee;
+        }
+        .table-wrapper table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+        }
+        /* Sticky Header */
+        .table-wrapper th {
+            position: sticky;
+            top: 0;
+            background: #0056b3;
+            color: white;
+            padding: 12px;
+            z-index: 10;
+            white-space: nowrap; /* Prevents text wrap so table gets wide */
+        }
+        .table-wrapper td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            white-space: nowrap; 
+        }
         `}
       </style>
       
@@ -862,7 +856,7 @@ export default function App() {
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
                       <li><b>ދުވަހުގެ ކުއިޒް:</b> %80 އިން ފާސްވުމުން <b>5 ކޮއިން</b>. ދުވާލަކު 2 ފަހަރު.</li>
                       <li><b>ސުވާލު ކީސާ:</b> 3 ސުވާލަށް ޖަވާބު ދިނުމުން <b>5 ކޮއިން</b>. ދުވާލަކު 5 ފަހަރު.</li>
-                      <li><b>ބޯނަސް ހަބް:</b> ކޮންމެ ދުވަހަކު ބޯނަސް ހަބް އިން ޓާސްކްތައް (މިސާލަކަށް: ރީޑް އެންޑް އާރން) ފުރިހަމަކޮށްގެން ހިލޭ ކޮއިން ހޯދޭނެއެވެ.</li>
+                      {/* Removed the line about Bonus hub to disable it visually for now */}
                   </ul>
               </div>
 
@@ -919,9 +913,9 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
                 <div className="marquee-wrapper">
-                    <div className="marquee-content">.</div>
+                    <div className="marquee-content">ޅޮހިނޫރު ޤްރުއާން މުބާރާތް ކުރިއަށް ދާނީ މާރޗް 7 އަދި 8 ގައެވެ.</div>
                 </div>
                 <h3>❓ ކޮންމެ ދުވަހަކު 5 ސުވާލު</h3>
                 <p>ބޭނުންވަރަކަށް ފަރިތަކުރައްވާ. ޖަވާބު ފޮނުވޭނީ އެއްފަހަރު.</p>
@@ -1079,10 +1073,14 @@ export default function App() {
                         <div className="dash-icon"><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg></div>
                         <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ސުވާލު ކީސާ</p></div>
                     </div>
+                    
+                    {/* BONUS HUB DISABLED FOR NOW
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'bonus_hub')} style={{borderColor: '#4caf50'}}>
                         <div className="dash-icon" style={{color: '#4caf50', background: '#e8f5e9'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
                         <div><p className="dash-menu-title" style={{color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން</p><p className="dash-menu-sub">އެހެނިހެން ޓާސްކްތައް ފުރިހަމަކޮށް ކޮއިން ހޯދާ!</p></div>
                     </div>
+                    */}
+
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'gift_shop')} style={{borderColor: '#ff9800'}}>
                         <div className="dash-icon" style={{color: '#ff9800', background: '#fff3e0'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg></div>
                         <div><p className="dash-menu-title" style={{color: '#e65100'}}>އިނާމު ފިހާރަ (ގުރުއަތު ޓިކެޓް)</p><p className="dash-menu-sub">ކޮއިން ބޭނުންކޮށްގެން ގުރުއަތު ޓިކެޓް ގަންނަވާ!</p></div>
@@ -1090,75 +1088,14 @@ export default function App() {
                 </div>
             )}
 
-            {/* ✨ FULLY FUNCTIONAL BONUS HUB ✨ */}
+            {/* ✨ BONUS HUB VIEW (HIDDEN/DISABLED FOR NOW, but keeping code so it doesn't break if routed) ✨ */}
             {dashView === 'bonus_hub' && (
                 <div style={{...styles.card, background: '#f4fbf5'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #c8e6c9', paddingBottom: '10px', marginBottom: '15px'}}>
                         <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#2e7d32', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
                         <h3 style={{margin: 0, color: '#2e7d32'}}>✨ ބޯނަސް ކޮއިން ހަބް</h3>
                     </div>
-
-                    {/* 🔥 STREAK 🔥 */}
-                    <div className="program-card" style={{background: 'linear-gradient(135deg, #ff9a9e 0%, #ffcdd2 100%)', borderColor: '#ef5350', marginBottom: '15px', color: '#b71c1c'}}>
-                        <h3 style={{margin: '0 0 5px 0', fontSize: '24px'}}>🔥 މަގޭ ސްޓްރީކް: <span className="ltr-text">{profileData.current_streak || 0}</span> ދުވަސް</h3>
-                        <p style={{fontSize: '12px', margin: '0 0 10px 0'}}>ވިދިވިދިގެން ކޮންމެ ދުވަހަކު ކުއިޒް ކުޅޭނަމަ ސްޓްރީކް އިތުރުވާނެއެވެ!</p>
-                    </div>
-
-                    {/* 📚 READ & EARN */}
-                    <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
-                        <h4 style={{color: '#1976d2', margin: '0 0 10px 0'}}>📚 ކިޔާލާފައި ހޯދާ (Read & Earn)</h4>
-                        <div style={{background: '#f5f5f5', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #1976d2'}}>
-                            <p style={{fontSize: '14px', color: '#333', lineHeight: '1.6'}}>{appSettings.read_text}</p>
-                            <button 
-                                onClick={() => handleBonusClaim('read', appSettings.read_coins)} 
-                                disabled={todayClaims.some(c => c.task_type === 'read')}
-                                style={{...styles.btn, background: todayClaims.some(c => c.task_type === 'read') ? '#ccc' : '#1976d2', padding: '8px', fontSize: '13px', marginTop: '10px'}}
-                            >
-                                {todayClaims.some(c => c.task_type === 'read') ? '✅ މިއަދުގެ ބޯނަސް ނަގައިފިން' : `ކިޔައިފިން (+${appSettings.read_coins} 🪙)`}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 🧩 MINI PUZZLE */}
-                    {appSettings.puzzle_image_url && (
-                        <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
-                            <h4 style={{color: '#e65100', margin: '0 0 10px 0'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h4>
-                            <div style={{background: '#fff3e0', padding: '15px', borderRadius: '8px', border: '1px dashed #ffb74d'}}>
-                                <img src={appSettings.puzzle_image_url} alt="Puzzle" style={{width: '100%', borderRadius: '8px', marginBottom: '10px', maxHeight: '200px', objectFit: 'contain', background: '#fff'}} />
-                                
-                                {todayClaims.some(c => c.task_type === 'puzzle') ? (
-                                    <div style={{padding: '10px', background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold'}}>✅ ޖަވާބު ދިމާކޮށްފިން!</div>
-                                ) : (
-                                    <>
-                                        <input value={puzzleInput} onChange={(e) => setPuzzleInput(e.target.value)} placeholder="ޖަވާބު ލިޔުއްވާ..." style={{...styles.input, marginBottom: '10px', fontSize: '13px'}} />
-                                        <button onClick={submitPuzzle} style={{...styles.btn, background: '#ff9800', padding: '8px', fontSize: '13px'}}>ޖަވާބު ފޮނުވާ (+{appSettings.puzzle_coins} 🪙)</button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 🌟 GOOD BEHAVIOR */}
-                    <div className="program-card" style={{marginBottom: '10px', textAlign: 'right', background: 'white'}}>
-                        <h4 style={{color: '#8e24aa', margin: '0 0 10px 0'}}>🌟 އަޚްލާޤީ ތަރި (Good Deeds)</h4>
-                        <p style={{fontSize: '12px', color: '#666', marginBottom: '10px'}}>މިއަދު ކުރެވުނު ރަނގަޅު ކަމެއް ހުށަހަޅާށެވެ (ދުވާލަކު އެއްފަހަރު).</p>
-                        
-                        {todayClaims.some(c => c.task_type.startsWith('behavior')) ? (
-                            <div style={{padding: '10px', background: '#f3e5f5', color: '#4a148c', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '12px'}}>މިއަދުގެ ރިކުއެސްޓް ވަނީ ފޮނުވިފައި. (އެޕްރޫވް ވުމުން ކޮއިން ލިބޭނެ)</div>
-                        ) : (
-                            <>
-                                <select value={behaviorInput} onChange={(e) => setBehaviorInput(e.target.value)} style={{...styles.input, marginBottom: '10px', fontSize: '13px'}}>
-                                    <option>ޖަމާޢަތުގައި ނަމާދުކުރުން</option>
-                                    <option>މަންމަ/ބައްޕައަށް ގޭތެރޭގައި އެހީވުން</option>
-                                    <option>މިސްކިތް ސާފުކުރުން</option>
-                                    <option>ޤުރުއާން ކިޔެވުން</option>
-                                    <option>މަގުމަތިން ކުނި ނެގުން</option>
-                                </select>
-                                <button onClick={() => handleBonusClaim('behavior', 20, behaviorInput)} style={{...styles.btn, background: '#8e24aa', padding: '8px', fontSize: '13px'}}>ހުށަހަޅާ (+20 🪙)</button>
-                            </>
-                        )}
-                    </div>
-
+                    <p style={{textAlign:'center', color:'#888'}}>މިވަގުތު މިބައިވަނީ ބަންދުކުރެވިފައި</p>
                 </div>
             )}
 
@@ -1489,7 +1426,7 @@ export default function App() {
   );
 }
 
-// 🔥 ADMIN PANEL UPDATED WITH BONUS TASKS 🔥
+// 🔥 ADMIN PANEL UPDATED WITH SCROLL FIX & HIDDEN BONUS TAB 🔥
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
     appSettings, pendingClaims, fetchAppSettings,
@@ -1506,29 +1443,21 @@ function AdminPanel({
     const saveGift = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); e.target.reset(); loadAdminData(); showToast("އިނާމު ސޭވްވެއްޖެ!", "success"); };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
 
-    const saveAppSettings = async (e) => {
-        e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
-        await supabase.from('lhohinoor_app_settings').update(d).eq('id', 1);
-        showToast("ބޯނަސް ސެޓިންގްސް ސޭވްވެއްޖެ!", "success");
-        fetchAppSettings();
-    };
-
-    const approveClaim = async (id, coins) => {
-        await supabase.from('lhohinoor_bonus_claims').update({ status: 'Approved', coins_awarded: coins }).eq('id', id);
-        showToast("އެޕްރޫވް ކުރެވިއްޖެ!", "success");
-        loadAdminData();
-    };
-
-    const rejectClaim = async (id) => {
-        await supabase.from('lhohinoor_bonus_claims').update({ status: 'Rejected' }).eq('id', id);
-        showToast("ރިޖެކްޓް ކުރެވިއްޖެ!", "error");
-        loadAdminData();
-    };
-
     const openLiveDraw = () => { window.history.pushState({ view: 'live_draw', dashView: 'overview' }, '', ''); window.dispatchEvent(new PopStateEvent('popstate', { state: { view: 'live_draw', dashView: 'overview' }})); };
     const updateStudentResult = async (id, field, value) => { await supabase.from('lhohinoor_students').update({ [field]: value }).eq('id', id); };
     const deleteStudent = async (id) => { if(window.confirm("މި ދަރިވަރު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_students').delete().eq('id', id); loadAdminData(); } };
     
+    const handleBulkMathUpload = async () => {
+        try {
+            const parsedData = JSON.parse(bulkJSON);
+            if (!Array.isArray(parsedData)) return showToast("ޖޭސަން (JSON) ފޯމެޓް ނުބައި!", "error");
+            const { error } = await supabase.from('lhohinoor_math_questions').insert(parsedData);
+            if (error) throw error;
+            showToast(`${parsedData.length} ސުވާލު ކީސާ ސޭވްވެއްޖެ!`, "success");
+            setBulkJSON('');
+        } catch (err) { showToast("މައްސަލައެއް: " + err.message, "error"); }
+    };
+
     const pickWinner = async () => { 
         if (!winnerDate) return showToast("ތާރީޚް ޚިޔާރުކުރައްވާ.", "error");
         const selectedDateObj = new Date(winnerDate); selectedDateObj.setDate(selectedDateObj.getDate() - 7); const sevenDaysAgo = selectedDateObj.toISOString().split('T')[0];
@@ -1558,28 +1487,37 @@ function AdminPanel({
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap: 'wrap'}}>
                 <button style={{...styles.tab, borderBottom: adminTab==='students'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('students')}>ދަރިވަރުން</button>
                 <button style={{...styles.tab, borderBottom: adminTab==='quiz'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('quiz')}>ސުވާލު މުބާރާތް</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='math'?'3px solid #1976d2':'none', color: '#1976d2'}} onClick={()=>setAdminTab('math')}>ސުވާލު ކީސާ</button>
+                
+                {/* BONUS HUB HIDDEN FOR NOW
                 <button style={{...styles.tab, borderBottom: adminTab==='bonus'?'3px solid #e65100':'none', color: '#e65100'}} onClick={()=>setAdminTab('bonus')}>✨ ބޯނަސް ޓާސްކް</button>
-                <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none'}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
+                */}
+
+                <button style={{...styles.tab, borderBottom: adminTab==='gifts'?'3px solid #ff9800':'none', color: adminTab==='gifts'?'#ff9800':''}} onClick={()=>setAdminTab('gifts')}>އިނާމު ފިހާރަ</button>
+                <button style={{...styles.tab, borderBottom: adminTab==='partners'?'3px solid #2e7d32':'none'}} onClick={()=>setAdminTab('partners')}>ބައިވެރިން</button>
+                
                 <button style={{...styles.tab, background: '#d32f2f', color: 'white', borderRadius: '8px'}} onClick={openLiveDraw}>🔴 ލައިވް ގުރުއަތު ޕޯޓަލް</button>
             </div>
             
             {adminTab === 'students' && (
-                <div style={{overflowX:'auto'}}>
+                <>
                     <div style={{display:'flex', gap:10, marginBottom:15, alignItems: 'center', background:'#f0f4f8', padding:'10px', borderRadius:'8px', flexWrap: 'wrap'}}>
                         <label style={{fontWeight:'bold', color:'#333'}}>ގުރުއަތު ނަގާ ތާރީޚް:</label>
                         <input type="date" value={winnerDate} onChange={(e) => setWinnerDate(e.target.value)} style={{...styles.input, width:'auto', padding:'8px'}} />
                         <button onClick={pickWinner} style={{...styles.btn, background:'purple', width:'auto', padding:'8px 15px'}}>ނަސީބުވެރިޔާ ހޮވާ</button>
                     </div>
-                    <table style={styles.table}>
-                        <thead><tr><th>ނަން</th><th>އައި.ޑީ</th><th>ގްރޭޑް</th><th>ފޯނު</th><th>މާކްސް</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>{allStudents.map(s => (<tr key={s.id}><td>{s.student_name}</td><td className="ltr-text">{s.id_card}</td><td>{s.grade || '-'}</td><td className="ltr-text">{s.parent_phone}</td><td><input style={styles.tableInput} defaultValue={s.marks} onBlur={(e) => updateStudentResult(s.id, 'marks', e.target.value)} /></td><td><button onClick={()=>deleteStudent(s.id)} style={{...styles.btnSecondary, background:'red'}}>ފޮހެލާ</button></td></tr>))}</tbody>
-                    </table>
-                </div>
+                    <div className="table-wrapper">
+                        <table>
+                            <thead><tr><th>ނަން</th><th>އައި.ޑީ</th><th>ގްރޭޑް</th><th>ފޯނު</th><th>މާކްސް</th><th>ކަންތައް</th></tr></thead>
+                            <tbody>{allStudents.map(s => (<tr key={s.id}><td>{s.student_name}</td><td className="ltr-text">{s.id_card}</td><td>{s.grade || '-'}</td><td className="ltr-text">{s.parent_phone}</td><td><input style={styles.tableInput} defaultValue={s.marks} onBlur={(e) => updateStudentResult(s.id, 'marks', e.target.value)} /></td><td><button onClick={()=>deleteStudent(s.id)} style={{...styles.btnSecondary, background:'red'}}>ފޮހެލާ</button></td></tr>))}</tbody>
+                        </table>
+                    </div>
+                </>
             )}
 
             {adminTab === 'quiz' && (
-                <div style={{ overflowX: 'auto' }}>
-                    <form className="q-form" onSubmit={saveQuestion} style={{...styles.form, minWidth: '600px'}}>
+                <>
+                    <form className="q-form" onSubmit={saveQuestion} style={{...styles.form, minWidth: '600px', marginBottom: '20px'}}>
                         <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކުރޭ'} ސުވާލު</h3>
                         <input name="quiz_date" type="date" defaultValue={editingQ?.quiz_date || getActiveQuizDate()} style={{...styles.input, width: '200px'}} required />
                         <input name="question_text" placeholder="ސުވާލު" defaultValue={editingQ?.question_text} style={{...styles.input, direction:'rtl'}} required />
@@ -1591,53 +1529,27 @@ function AdminPanel({
                         <input name="correct_option" placeholder="ރަނގަޅު ޖަވާބު" defaultValue={editingQ?.correct_option} style={{...styles.input}} required />
                         <button type="submit" style={styles.btn}>ސޭވް</button>
                     </form>
-                </div>
+                    
+                    <div className="table-wrapper">
+                        <table>
+                            <thead><tr><th>ތާރީޚް</th><th>ސުވާލު</th><th>ޖަވާބު</th><th>ކަންތައް</th></tr></thead>
+                            <tbody>{allQuestions.map(q => (<tr key={q.id}><td style={{direction:'ltr', width: '100px'}}>{q.quiz_date}</td><td>{q.question_text}</td><td style={{color:'green'}}>{q.correct_option}</td><td style={{width: '200px'}}><button style={{...styles.btnSecondary, width:'auto', marginRight: '5px'}} onClick={()=>setEditingQ(q)}>ބަދަލުކުރޭ</button><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deleteQuestion(q.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
+                        </table>
+                    </div>
+                </>
             )}
 
-            {/* 🔥 NEW BONUS SETTINGS TAB 🔥 */}
-            {adminTab === 'bonus' && (
-                <div style={{ overflowX: 'auto' }}>
-                    <form onSubmit={saveAppSettings} style={{...styles.form, minWidth: '600px', background: '#f5f5f5', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
-                        <h3 style={{color: '#1976d2', marginTop: 0}}>📚 ރީޑް އެންޑް އާރން (Read & Earn)</h3>
-                        <textarea name="read_text" defaultValue={appSettings.read_text} placeholder="މިއަދުގެ ޙަދީޘް ނުވަތަ މަޢުލޫމާތު" style={{...styles.input, height: '80px', resize: 'vertical'}} required />
-                        <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
-                        <input name="read_coins" type="number" defaultValue={appSettings.read_coins} style={styles.inputLtr} required />
-
-                        <h3 style={{color: '#e65100', marginTop: '20px'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h3>
-                        <input name="puzzle_image_url" defaultValue={appSettings.puzzle_image_url} placeholder="ޕަޒްލް ފޮޓޯ ލިންކް (URL)" style={styles.inputLtr} />
-                        <input name="puzzle_answer" defaultValue={appSettings.puzzle_answer} placeholder="ރަނގަޅު ޖަވާބު" style={styles.input} />
-                        <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
-                        <input name="puzzle_coins" type="number" defaultValue={appSettings.puzzle_coins} style={styles.inputLtr} />
-
-                        <button type="submit" style={{...styles.btn, background: '#2e7d32', marginTop: '10px'}}>ސޭވް ބޯނަސް ސެޓިންގްސް</button>
-                    </form>
-
-                    <h3 style={{color: '#8e24aa'}}>🌟 އެޕްރޫވް ނުކުރާ އަޚްލާޤީ ޓާސްކްތައް (Pending Good Deeds)</h3>
-                    <table style={{...styles.table, minWidth: '600px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ކުރި ކަންތައް</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>
-                            {pendingClaims.map(c => {
-                                const student = allStudents.find(s => s.id === c.user_id);
-                                return (
-                                    <tr key={c.id}>
-                                        <td className="ltr-text">{c.claim_date}</td>
-                                        <td>{student ? student.student_name : 'Unknown'}</td>
-                                        <td>{c.task_type.replace('behavior: ', '')}</td>
-                                        <td>
-                                            <button onClick={() => approveClaim(c.id, 20)} style={{...styles.btn, background: '#4caf50', width: 'auto', padding: '5px 10px', fontSize: '12px', marginRight: '5px'}}>✔ އެޕްރޫވް (20🪙)</button>
-                                            <button onClick={() => rejectClaim(c.id)} style={{...styles.btnSecondary, background: '#f44336', width: 'auto', padding: '5px 10px', fontSize: '12px'}}>✖ ރިޖެކްޓް</button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {pendingClaims.length === 0 && <tr><td colSpan="4" style={{textAlign: 'center', padding: '20px'}}>އެޕްރޫވް ކުރަންޖެހޭ ކަމެއް ނެތް.</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
+            {adminTab === 'math' && (
+                <>
+                    <h3 style={{color: '#1976d2'}}>ސުވާލު ކީސާ (Bulk Upload)</h3>
+                    <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި ސުވާލުތައް ޕޭސްޓް ކުރައްވާ.</p>
+                    <textarea value={bulkJSON} onChange={(e) => setBulkJSON(e.target.value)} style={{...styles.inputLtr, height: '200px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}} />
+                    <button onClick={handleBulkMathUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>އަޕްލޯޑް ކުރޭ</button>
+                </>
             )}
 
             {adminTab === 'gifts' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                <>
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
                         <h3 style={{color: '#e65100', marginTop: 0}}>އައު އިނާމެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="އިނާމުގެ ނަން" style={styles.input} required />
@@ -1646,18 +1558,50 @@ function AdminPanel({
                         <button type="submit" style={{...styles.btn, background: '#ff9800', maxWidth: '200px'}}>އިތުރުކުރޭ</button>
                     </form>
 
-                    <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ފޮޓޯ</th><th>ނަން</th><th>ޓިކެޓެއްގެ އަގު</th><th>ކަންތައް</th></tr></thead>
-                        <tbody>{allGifts.map(g => (
-                            <tr key={g.id}>
-                                <td><img src={g.image_url} alt={g.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #ddd' }} /></td>
-                                <td>{g.name}</td>
-                                <td className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>{g.cost} 🪙</td>
-                                <td><button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button></td>
-                            </tr>
-                        ))}</tbody>
-                    </table>
-                </div>
+                    <div className="table-wrapper">
+                        <table>
+                            <thead><tr><th>ފޮޓޯ</th><th>ނަން</th><th>ޓިކެޓެއްގެ އަގު</th><th>ކަންތައް</th></tr></thead>
+                            <tbody>{allGifts.map(g => (
+                                <tr key={g.id}>
+                                    <td><img src={g.image_url} alt={g.name} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #ddd' }} /></td>
+                                    <td>{g.name}</td>
+                                    <td className="ltr-text" style={{color: '#ff9800', fontWeight: 'bold'}}>{g.cost} 🪙</td>
+                                    <td><button style={{...styles.btnSecondary, background:'red', width:'auto', padding: '6px 12px', fontSize: '13px'}} onClick={()=>deleteGift(g.id)}>ފޮހެލާ</button></td>
+                                </tr>
+                            ))}</tbody>
+                        </table>
+                    </div>
+                </>
+            )}
+
+            {adminTab === 'partners' && (
+                <>
+                    <form onSubmit={savePartner} style={{...styles.form, marginBottom:'20px', minWidth: '500px'}}>
+                        <h3>ބައިވެރިއެއް އިތުރުކުރޭ</h3>
+                        <input name="name" placeholder="ނަން" style={styles.input} required />
+                        <input name="logo_url" placeholder="ލޯގޯ ލިންކް (URL)" style={styles.inputLtr} />
+                        <button type="submit" style={{...styles.btn, maxWidth: '200px'}}>އިތުރުކުރޭ</button>
+                    </form>
+                    
+                    <div className="table-wrapper" style={{marginBottom: '20px'}}>
+                        <table>
+                            <thead><tr><th>ނަން</th><th>ކަންތައް</th></tr></thead>
+                            <tbody>{allPartners.map(p => (<tr key={p.id}><td>{p.name}</td><td><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deletePartner(p.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
+                        </table>
+                    </div>
+                    
+                    <h3 style={{marginTop: '30px'}}>ރިކުއެސްޓްތައް</h3>
+                    <div className="table-wrapper">
+                        <table>
+                            <thead><tr><th>ވިޔަފާރި</th><th>ފޯނު</th><th>ގުޅޭނެ ފަރާތް</th></tr></thead>
+                            <tbody>{partnerRequestsList.map(r => (<tr key={r.id}>
+                                <td>{r.business_name}</td>
+                                <td style={{direction: 'ltr', textAlign: 'right'}}>{r.phone}</td>
+                                <td>{r.contact_name}</td>
+                            </tr>))}</tbody>
+                        </table>
+                    </div>
+                </>
             )}
           </div>
         </div>
@@ -1673,6 +1617,14 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
             loadShopAdminData(); showToast('އޯޑަރު ދޫކުރެވިއްޖެ!', 'success');
         }
     };
+
+    const deliverVoucher = async (id) => {
+        if(window.confirm("މި ވައުޗަރ ދަރިވަރާ ހަވާލުކޮށްފިންތަ؟")) { 
+            await supabase.from('lhohinoor_daily_winners').update({ status: 'Delivered' }).eq('id', id); 
+            loadShopAdminData(); showToast('ވައުޗަރ ދޫކުރެވިއްޖެ!', 'success');
+        }
+    };
+
     return (
         <div style={styles.container}>
           <div style={{...styles.card, maxWidth:'1300px', margin: '20px auto'}}>
@@ -1682,22 +1634,56 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
             </div>
             <div className="admin-tabs" style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
                 <button style={{...styles.tab, borderBottom: shopTab==='orders'?'3px solid #ff9800':'none'}} onClick={()=>setShopTab('orders')}>ގުރުއަތު ޓިކެޓްތައް</button>
+                <button style={{...styles.tab, borderBottom: shopTab==='vouchers'?'3px solid #ff9800':'none'}} onClick={()=>setShopTab('vouchers')}>ކުއިޒް ވައުޗަރުތައް</button>
             </div>
+            
             {shopTab === 'orders' && (
-                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
-                    <table style={{...styles.table, minWidth: '800px'}}>
-                        <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>ޓިކެޓް ގަތް އިނާމު</th><th>ކޮއިން</th></tr></thead>
-                        <tbody>
-                            {shopOrders.length > 0 ? shopOrders.map(o => (
-                                <tr key={o.id}>
-                                    <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
-                                    <td>{o.student_name}</td><td className="ltr-text">{o.phone}</td><td>{o.item_name}</td>
-                                    <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
-                                </tr>
-                            )) : <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>އަދި ޓިކެޓެއް ނުވިކޭ</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކުދިން ގަނެފައިވާ ގުރުއަތު ޓިކެޓްތަކުގެ ލިސްޓު (މިއީ ލައިވް ޑްރޯއަށް ބޭނުންކުރެވޭނެ ލިސްޓެކެވެ).</p>
+                    <div className="table-wrapper">
+                        <table>
+                            <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>ޓިކެޓް ގަތް އިނާމު</th><th>ކޮއިން</th></tr></thead>
+                            <tbody>
+                                {shopOrders.length > 0 ? shopOrders.map(o => (
+                                    <tr key={o.id}>
+                                        <td className="ltr-text" style={{fontSize: '12px'}}>{new Date(o.created_at).toLocaleDateString()}</td>
+                                        <td>{o.student_name}</td><td className="ltr-text">{o.phone}</td><td>{o.item_name}</td>
+                                        <td className="ltr-text" style={{color: '#ff9800'}}>{o.cost}</td>
+                                    </tr>
+                                )) : <tr><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>އަދި ޓިކެޓެއް ނުވިކޭ</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
+
+            {shopTab === 'vouchers' && (
+                <>
+                    <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކޮންމެ ދުވަހެއްގެ ކުއިޒް ނަސީބުވެރިޔާއަށް ދެވޭ 100 ރުފިޔާގެ ވައުޗަރ ހަވާލުކުރުން.</p>
+                    <div className="table-wrapper">
+                        <table>
+                            <thead><tr><th>ތާރީޚް</th><th>ނަން</th><th>ފޯނު</th><th>އިނާމު</th><th>ސްޓޭޓަސް</th><th>ކަންތައް</th></tr></thead>
+                            <tbody>
+                                {shopWinners.length > 0 ? shopWinners.map(w => (
+                                    <tr key={w.id}>
+                                        <td className="ltr-text" style={{fontSize: '12px'}}>{w.won_at}</td>
+                                        <td>{w.username}</td>
+                                        <td className="ltr-text">{w.phone}</td>
+                                        <td>{w.prize}</td>
+                                        <td style={{color: w.status === 'Pending' || !w.status ? '#f44336' : '#4caf50', fontWeight: 'bold'}}>{w.status === 'Pending' || !w.status ? 'ނުދީ' : 'ދީފި'}</td>
+                                        <td>
+                                            {w.status === 'Pending' || !w.status ? (
+                                                <button style={{...styles.btn, background: '#4caf50', padding: '5px 10px', fontSize: '12px', width: 'auto'}} onClick={() => deliverVoucher(w.id)}>ދީފިން (Deliver)</button>
+                                            ) : (
+                                                <span style={{fontSize: '12px', color: '#999'}}>✔ Completed</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                )) : <tr><td colSpan="6" style={{textAlign: 'center', padding: '20px'}}>އަދި ނަސީބުވެރިޔަކު ނެތް</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             )}
           </div>
         </div>
@@ -1722,7 +1708,6 @@ const styles = {
   optionBtn: { padding: '15px', background: '#f8f9fa', border: '2px solid #e0e0e0', borderRadius: '12px', cursor: 'pointer', textAlign: 'right', width:'100%', transition: 'all 0.2s', fontSize: '15px' },
   tabs: { display: 'flex', marginBottom: '20px' },
   tab: { flex: 1, padding: '10px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' },
-  table: { width: '100%', borderCollapse: 'collapse', marginTop: '20px', textAlign: 'right' },
   tableInput: { width: '50px', padding: '5px', textAlign: 'center' },
   scrollArea: { maxHeight: '50vh', overflowY: 'auto', display:'flex', flexDirection:'column', gap:'10px' },
   partnerSection: { background: 'white', padding: '30px 20px', borderRadius: '15px', marginTop: '40px', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' },
