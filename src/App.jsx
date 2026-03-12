@@ -156,7 +156,6 @@ export default function App() {
     fetchLeaderboards(); 
     fetchGifts(); 
     fetchAppSettings();
-    fetchTodayPuzzle();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); routeUser(session.user); }
@@ -183,8 +182,18 @@ export default function App() {
       if (data) setAppSettings(data);
   };
 
-  const fetchTodayPuzzle = async () => {
-      const { data } = await supabase.from('lhohinoor_daily_puzzles').select('*').eq('puzzle_date', getActiveQuizDate()).maybeSingle();
+  // 🔥 NEW: LEVEL BASED PUZZLE FETCHING 🔥
+  const fetchTodayPuzzle = async (userGrade) => {
+      let level = 'Easy';
+      if (['Grade 6', 'Grade 7', 'Grade 8'].includes(userGrade)) level = 'Medium';
+      if (['Grade 9', 'Grade 10', '17+', '45+'].includes(userGrade)) level = 'Hard';
+
+      const { data } = await supabase.from('lhohinoor_daily_puzzles')
+          .select('*')
+          .eq('puzzle_date', getActiveQuizDate())
+          .eq('difficulty', level)
+          .maybeSingle();
+          
       setTodayPuzzle(data);
   };
 
@@ -269,8 +278,12 @@ export default function App() {
         
         setProfileData(enrichedData);
         
-        if (isMissing) { navigateTo('profile_setup'); } 
-        else if (view !== 'quiz' && view !== 'math_quiz') { navigateTo('dashboard'); }
+        if (isMissing) { 
+            navigateTo('profile_setup'); 
+        } else {
+            fetchTodayPuzzle(data.grade); // Fetch puzzle ONLY after knowing the grade
+            if (view !== 'quiz' && view !== 'math_quiz') navigateTo('dashboard');
+        }
     } else {
         setProfileData({ student_name: "", id_card: "", parent_phone: "", parent_address: "", grade: "", isMissing: true });
         navigateTo('profile_setup');
@@ -353,7 +366,7 @@ export default function App() {
       if (data && data.length > 0) { setMonthlyWinners(data.filter(w => w.prize && String(w.prize).includes('ގުރުއަތުން')).slice(0, 6)); }
   };
 
-  const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data); };
+  const fetchPartners = async () => { const { data } = await supabase.from('lhohinoor_partners').select('*'); if (data) setAllPartners(data || []); };
   const fetchGifts = async () => { const { data } = await supabase.from('lhohinoor_gifts').select('*').order('cost', { ascending: true }); if (data) setAllGifts(data); };
 
   const fetchLeaderboards = async () => {
@@ -878,9 +891,9 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/1689479593355.png" alt="Quiz" style={styles.cardImg} loading="lazy" />
+                {/* 🔥 UPDATED IMAGE URL 🔥 */}
+                <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz Cover" style={{...styles.cardImg, objectFit: 'cover', background: '#f8f9fa'}} loading="lazy" />
                 
-                {/* 🔥 DYNAMIC MARQUEE (ADMIN CONTROLLED) 🔥 */}
                 <div className="marquee-wrapper">
                     <div className="marquee-content">{appSettings.marquee_text}</div>
                 </div>
@@ -900,7 +913,7 @@ export default function App() {
           
           <div style={styles.partnerSection} className="animate-card">
               <h3 style={{color:'#2e7d32'}}> ބައިވެރިން</h3>
-              <div style={styles.sponsorGrid}>{allPartners.length > 0 ? allPartners.map(p => (<div key={p.id} style={{textAlign:'center'}}>{p.logo_url ? <img src={p.logo_url} style={styles.sponsorImg} alt={p.name} loading="lazy"/> : <span style={{fontWeight:'bold', color:'#555'}}>{p.name}</span>}</div>)) : <p>ބައިވެރިންގެ މަޢުލޫމާތު ލޯޑުކުރަނީ...</p>}</div>
+              <div style={styles.sponsorGrid}>{(allPartners || []).length > 0 ? (allPartners || []).map(p => (<div key={p.id} style={{textAlign:'center'}}>{p.logo_url ? <img src={p.logo_url} style={styles.sponsorImg} alt={p.name} loading="lazy"/> : <span style={{fontWeight:'bold', color:'#555'}}>{p.name}</span>}</div>)) : <p>ބައިވެރިންގެ މަޢުލޫމާތު ލޯޑުކުރަނީ...</p>}</div>
               <p onClick={() => navigateTo('partner_form')} style={styles.simpleLink}>ބައިވެރިއަކަށް ވެލައްވާ</p>
               <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '1px solid #eee', fontSize: '11px', color: '#888', lineHeight: '1.4' }}>
                  <p style={{ margin: '0 0 3px 0', color: '#2e7d32', fontWeight: 'bold' }}>© {new Date().getFullYear()} ޅޮހިނޫރު - LhohiNoor</p>
@@ -1482,7 +1495,7 @@ export default function App() {
   );
 }
 
-// 🔥 ADMIN PANEL WITH BULK PUZZLE UPLOAD 🔥
+// 🔥 ADMIN PANEL WITH MARQUEE & HIFZ APPROVALS & FIXED PARTNER TAB 🔥
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
     appSettings, pendingClaims, fetchAppSettings,
@@ -1499,6 +1512,9 @@ function AdminPanel({
     
     const saveGift = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_gifts').insert([{ name: d.name, cost: parseInt(d.cost, 10), image_url: d.image_url }]); e.target.reset(); loadAdminData(); showToast("އިނާމު ސޭވްވެއްޖެ!", "success"); };
     const deleteGift = async (id) => { if(window.confirm("މި އިނާމު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_gifts').delete().eq('id', id); loadAdminData(); } };
+
+    const savePartner = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); await supabase.from('lhohinoor_partners').insert([{ name: d.name, logo_url: d.logo_url }]); e.target.reset(); loadAdminData(); showToast("ބައިވެރިޔާ ސޭވްވެއްޖެ!", "success"); };
+    const deletePartner = async (id) => { if(window.confirm("މި ބައިވެރިޔާ ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_partners').delete().eq('id', id); loadAdminData(); } };
 
     const saveAppSettings = async (e) => {
         e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
@@ -1599,7 +1615,7 @@ function AdminPanel({
             )}
 
             {adminTab === 'quiz' && (
-                <>
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form className="q-form" onSubmit={saveQuestion} style={{...styles.form, minWidth: '600px', marginBottom: '20px'}}>
                         <h3>{editingQ?'ބަދަލުކުރޭ':'އިތުރުކުރޭ'} ސުވާލު</h3>
                         <input name="quiz_date" type="date" defaultValue={editingQ?.quiz_date || getActiveQuizDate()} style={{...styles.input, width: '200px'}} required />
@@ -1619,22 +1635,23 @@ function AdminPanel({
                             <tbody>{allQuestions.map(q => (<tr key={q.id}><td style={{direction:'ltr', width: '100px'}}>{q.quiz_date}</td><td>{q.question_text}</td><td style={{color:'green'}}>{q.correct_option}</td><td style={{width: '200px'}}><button style={{...styles.btnSecondary, width:'auto', marginRight: '5px'}} onClick={()=>setEditingQ(q)}>ބަދަލުކުރޭ</button><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deleteQuestion(q.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
 
             {adminTab === 'math' && (
-                <>
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <h3 style={{color: '#1976d2'}}>ސުވާލު ކީސާ (Bulk Upload)</h3>
                     <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި ސުވާލުތައް ޕޭސްޓް ކުރައްވާ.</p>
                     <textarea value={bulkJSON} onChange={(e) => setBulkJSON(e.target.value)} style={{...styles.inputLtr, height: '200px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}} />
                     <button onClick={handleBulkMathUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>އަޕްލޯޑް ކުރޭ</button>
-                </>
+                </div>
             )}
 
             {adminTab === 'bonus' && (
                 <div style={{ overflowX: 'auto' }}>
                     <form onSubmit={saveAppSettings} style={{...styles.form, minWidth: '600px', background: '#f5f5f5', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
                         
+                        {/* MARQUEE UPDATER */}
                         <h3 style={{color: '#d32f2f', marginTop: 0}}>📢 ނޯޓިސް ބޯޑު (Marquee)</h3>
                         <textarea name="marquee_text" defaultValue={appSettings.marquee_text} placeholder="ދުވަހުގެ ނޯޓިސް (ހޯމް ޕޭޖުގައި ދުވާނީ)" style={{...styles.input, height: '60px', resize: 'vertical', marginBottom: '20px'}} required />
 
@@ -1650,7 +1667,7 @@ function AdminPanel({
                     <div style={{...styles.form, minWidth: '600px', background: '#fff3e0', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
                         <h3 style={{color: '#e65100', marginTop: '0'}}>🧩 ދުވަހުގެ ޕަޒްލް (Bulk Upload)</h3>
                         <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި އިމޯޖީ ޕަޒްލްތައް ޕޭސްޓް ކުރައްވާ.</p>
-                        <textarea value={puzzleJSON} onChange={(e) => setPuzzleJSON(e.target.value)} style={{...styles.inputLtr, height: '150px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}} placeholder='[{"puzzle_date": "2026-03-12", "puzzle_text": "🍎 + 🍎 = 10\n🍎 + 🍌 = 8\n🍌 = ?", "answer": "3", "coins": 30}]' />
+                        <textarea value={puzzleJSON} onChange={(e) => setPuzzleJSON(e.target.value)} style={{...styles.inputLtr, height: '150px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}} placeholder='[{"puzzle_date": "2026-03-12", "difficulty": "Easy", "puzzle_text": "🍎 + 🍎 = 10\n🍎 + 🍌 = 8\n🍌 = ?", "answer": "3", "coins": 30}]' />
                         <button type="button" onClick={handleBulkPuzzleUpload} style={{...styles.btn, background: '#ff9800', marginTop: '10px', maxWidth: '200px'}}>ޕަޒްލްތައް އަޕްލޯޑް ކުރޭ</button>
                     </div>
 
@@ -1681,7 +1698,7 @@ function AdminPanel({
             )}
 
             {adminTab === 'gifts' && (
-                <>
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form onSubmit={saveGift} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#fff3e0', padding: '20px', borderRadius: '10px'}}>
                         <h3 style={{color: '#e65100', marginTop: 0}}>އައު އިނާމެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="އިނާމުގެ ނަން" style={styles.input} required />
@@ -1703,37 +1720,38 @@ function AdminPanel({
                             ))}</tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
 
+            {/* 🔥 FIXED PARTNERS TAB (No more blank screens) 🔥 */}
             {adminTab === 'partners' && (
-                <>
-                    <form onSubmit={savePartner} style={{...styles.form, marginBottom:'20px', minWidth: '500px'}}>
-                        <h3>ބައިވެރިއެއް އިތުރުކުރޭ</h3>
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
+                    <form onSubmit={savePartner} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#e8f5e9', padding: '20px', borderRadius: '10px'}}>
+                        <h3 style={{color: '#2e7d32', marginTop: 0}}>ބައިވެރިއެއް އިތުރުކުރޭ</h3>
                         <input name="name" placeholder="ނަން" style={styles.input} required />
                         <input name="logo_url" placeholder="ލޯގޯ ލިންކް (URL)" style={styles.inputLtr} />
-                        <button type="submit" style={{...styles.btn, maxWidth: '200px'}}>އިތުރުކުރޭ</button>
+                        <button type="submit" style={{...styles.btn, background: '#2e7d32', maxWidth: '200px'}}>އިތުރުކުރޭ</button>
                     </form>
                     
                     <div className="table-wrapper" style={{marginBottom: '20px'}}>
                         <table>
                             <thead><tr><th>ނަން</th><th>ކަންތައް</th></tr></thead>
-                            <tbody>{allPartners.map(p => (<tr key={p.id}><td>{p.name}</td><td><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deletePartner(p.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
+                            <tbody>{(allPartners || []).map(p => (<tr key={p.id}><td>{p.name}</td><td><button style={{...styles.btnSecondary, background:'red', width:'auto'}} onClick={()=>deletePartner(p.id)}>ފޮހެލާ</button></td></tr>))}</tbody>
                         </table>
                     </div>
                     
-                    <h3 style={{marginTop: '30px'}}>ރިކުއެސްޓްތައް</h3>
+                    <h3 style={{marginTop: '30px', color: '#0056b3'}}>ރިކުއެސްޓްތައް</h3>
                     <div className="table-wrapper">
                         <table>
                             <thead><tr><th>ވިޔަފާރި</th><th>ފޯނު</th><th>ގުޅޭނެ ފަރާތް</th></tr></thead>
-                            <tbody>{partnerRequestsList.map(r => (<tr key={r.id}>
+                            <tbody>{(partnerRequestsList || []).map(r => (<tr key={r.id}>
                                 <td>{r.business_name}</td>
                                 <td style={{direction: 'ltr', textAlign: 'right'}}>{r.phone}</td>
                                 <td>{r.contact_name}</td>
                             </tr>))}</tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
           </div>
         </div>
@@ -1770,7 +1788,7 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
             </div>
             
             {shopTab === 'orders' && (
-                <>
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކުދިން ގަނެފައިވާ ގުރުއަތު ޓިކެޓްތަކުގެ ލިސްޓު (މިއީ ލައިވް ޑްރޯއަށް ބޭނުންކުރެވޭނެ ލިސްޓެކެވެ).</p>
                     <div className="table-wrapper">
                         <table>
@@ -1786,11 +1804,11 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
                             </tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
 
             {shopTab === 'vouchers' && (
-                <>
+                <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <p style={{fontSize: '13px', color: '#666', marginBottom: '15px'}}>ކޮންމެ ދުވަހެއްގެ ކުއިޒް ނަސީބުވެރިޔާއަށް ދެވޭ 100 ރުފިޔާގެ ވައުޗަރ ހަވާލުކުރުން.</p>
                     <div className="table-wrapper">
                         <table>
@@ -1815,7 +1833,7 @@ function ShopAdminPanel({ shopOrders, shopWinners, loadShopAdminData, handleLogo
                             </tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
           </div>
         </div>
