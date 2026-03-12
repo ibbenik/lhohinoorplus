@@ -115,14 +115,13 @@ export default function App() {
   const [myOrders, setMyOrders] = useState([]);
 
   // 🔥 SETTINGS & BONUS STATES 🔥
-  const [appSettings, setAppSettings] = useState({ read_text: 'މިއަދުގެ ޙަދީޘް: ...', read_coins: 10, puzzle_image_url: '', puzzle_answer: '', puzzle_coins: 30, marquee_text: 'މިއަދުގެ ކުއިޒް ފެށިއްޖެ! ބައިވެރިވެލައްވާ!' });
+  const [appSettings, setAppSettings] = useState({ read_text: 'މިއަދުގެ ޙަދީޘް: ...', read_coins: 10, marquee_text: 'މިއަދުގެ ކުއިޒް ފެށިއްޖެ! ބައިވެރިވެލައްވާ!' });
   const [todayClaims, setTodayClaims] = useState([]);
+  const [todayPuzzle, setTodayPuzzle] = useState(null);
   const [puzzleInput, setPuzzleInput] = useState('');
   
-  // NEW HIFZ STATE
   const [behaviorInput, setBehaviorInput] = useState('ސޫރަތުލް މުލްކް');
   const [verifierInput, setVerifierInput] = useState('');
-  
   const [pendingClaims, setPendingClaims] = useState([]);
 
   const [allStudents, setAllStudents] = useState([]);
@@ -142,11 +141,9 @@ export default function App() {
 
   const routeUser = async (userObj) => {
       if (userObj.email === 'admin@lhohi.mv') {
-          navigateTo('admin');
-          loadAdminData();
+          navigateTo('admin'); loadAdminData();
       } else if (userObj.email === 'shop@lhohi.mv') {
-          navigateTo('shop_admin');
-          loadShopAdminData();
+          navigateTo('shop_admin'); loadShopAdminData();
       } else {
           await fetchProfileDetails(userObj.id);
       }
@@ -159,6 +156,7 @@ export default function App() {
     fetchLeaderboards(); 
     fetchGifts(); 
     fetchAppSettings();
+    fetchTodayPuzzle();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); routeUser(session.user); }
@@ -171,11 +169,7 @@ export default function App() {
   }, []);
 
   const handleLogout = async () => {
-      await supabase.auth.signOut();
-      setUser(null);
-      setProfileData(null);
-      navigateTo('home');
-      window.location.reload(); 
+      await supabase.auth.signOut(); setUser(null); setProfileData(null); navigateTo('home'); window.location.reload(); 
   };
 
   const getActiveQuizDate = () => {
@@ -187,6 +181,11 @@ export default function App() {
   const fetchAppSettings = async () => {
       const { data } = await supabase.from('lhohinoor_app_settings').select('*').eq('id', 1).single();
       if (data) setAppSettings(data);
+  };
+
+  const fetchTodayPuzzle = async () => {
+      const { data } = await supabase.from('lhohinoor_daily_puzzles').select('*').eq('puzzle_date', getActiveQuizDate()).maybeSingle();
+      setTodayPuzzle(data);
   };
 
   const fetchProfileDetails = async (userId) => {
@@ -293,8 +292,12 @@ export default function App() {
   };
 
   const submitPuzzle = async () => {
-      if (!puzzleInput) return;
-      if (puzzleInput.trim().toLowerCase() === appSettings.puzzle_answer.trim().toLowerCase()) { handleBonusClaim('puzzle', appSettings.puzzle_coins); } else { showToast('ޖަވާބު ނުބައި! އަލުން މަސައްކަތްކުރައްވާ.', 'error'); }
+      if (!puzzleInput || !todayPuzzle) return;
+      if (puzzleInput.trim().toLowerCase() === todayPuzzle.answer.trim().toLowerCase()) { 
+          handleBonusClaim('puzzle', todayPuzzle.coins); 
+      } else { 
+          showToast('ޖަވާބު ނުބައި! އަލުން ވިސްނާލައްވާ.', 'error'); 
+      }
   };
 
   const showToast = (text, type = 'error') => {
@@ -657,7 +660,6 @@ export default function App() {
         .cert-body { font-size: 18px; color: #333; line-height: 1.8; }
         .cert-bonus { background: #d4edda; color: #155724; padding: 10px 20px; border-radius: 20px; display: inline-block; font-weight: bold; margin-top: 20px; border: 2px solid #c3e6cb; }
 
-        /* 🔥 TABLE WRAPPER FOR SCROLLING FIX 🔥 */
         .table-wrapper { width: 100%; max-height: 65vh; overflow-y: auto; overflow-x: auto; border-radius: 8px; box-shadow: inset 0 0 5px rgba(0,0,0,0.05); background: white; border: 1px solid #eee; }
         .table-wrapper table { width: 100%; border-collapse: collapse; text-align: right; }
         .table-wrapper th { position: sticky; top: 0; background: #0056b3; color: white; padding: 12px; z-index: 10; white-space: nowrap; }
@@ -703,7 +705,6 @@ export default function App() {
       {view === 'live_draw' && (
           <div className="live-draw-container">
               <div className="rays-bg" style={{opacity: 0.3}}></div>
-              
               {!isSpinning && !drawWinnerObj && (
                   <>
                       <h1 style={{fontSize: 'clamp(30px, 5vw, 40px)', color: '#ffd700', textShadow: '2px 2px 10px rgba(0,0,0,0.5)', marginBottom: '40px'}}>🎁 މަހުގެ ބޮޑު ގުރުއަތުލުން 🎁</h1>
@@ -725,11 +726,7 @@ export default function App() {
                       {activeDrawGift && <img src={activeDrawGift.image_url} alt="Gift" className="live-gift-img" />}
                       <h2 style={{color: '#0056b3', margin: 0, fontSize: 'clamp(20px, 4vw, 24px)'}}>{activeDrawGift?.name}</h2>
                       <p style={{color: '#666', marginTop: '5px'}}>{spinName.includes('ކުއްޖަކު ނެތް') ? 'ނަތީޖާ:' : 'ނަސީބުވެރިޔާ:'}</p>
-                      
-                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`}>
-                          {spinName}
-                      </div>
-
+                      <div className={`spin-name ${isSpinning ? 'spinning' : ''}`}>{spinName}</div>
                       {!isSpinning && drawWinnerObj && (
                           <>
                               <p className="ltr-text" style={{fontSize: '20px', color: '#ff9800', fontWeight: 'bold'}}>{drawWinnerObj.parent_phone}</p>
@@ -738,7 +735,6 @@ export default function App() {
                               </div>
                           </>
                       )}
-
                       {!isSpinning && !drawWinnerObj && spinName.includes('ކުއްޖަކު ނެތް') && (
                           <div style={{marginTop: '30px'}}>
                               <button onClick={() => { setActiveDrawGift(null); setSpinName("ނަސީބުވެރިޔާ ހޯދަނީ..."); }} style={{...styles.btnSecondary, background: '#666', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>ފަހަތަށް</button>
@@ -758,7 +754,6 @@ export default function App() {
                <span className="nav-item" onClick={() => navigateTo('home')}>ހޯމް</span>
                <span className="nav-item" onClick={handleGiftShopNavigation} style={{color: '#e65100'}}>އިނާމު</span>
                <span className="nav-item" onClick={() => navigateTo('info')}>މަޢުލޫމާތު</span>
-               
                {user ? (
                    <>
                        {user.email === 'admin@lhohi.mv' ? (
@@ -818,7 +813,6 @@ export default function App() {
         <div style={styles.centeredContainer}>
           <div style={{...styles.quizCard, maxWidth: '700px'}} className="animate-card">
               <h2 style={{textAlign:'center', color:'#0056b3', marginBottom:'25px'}}>މުބާރާތުގެ މަޢުލޫމާތާއި ޤަވާއިދުތައް</h2>
-              
               <div className="info-section" style={{background: '#e3f2fd', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #1976d2'}}>
                   <div className="info-title" style={{color: '#1976d2', fontSize: '18px', marginBottom: '10px'}}>🔑 1. ލޮގިން އަދި އެކައުންޓް ހެދުން</div>
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
@@ -826,7 +820,6 @@ export default function App() {
                       <li>އެކައުންޓް ހެދުމަށްފަހު، <b>"ޕްރޮފައިލް"</b> ގައި ދަރިވަރުގެ ފުރިހަމަ ނަން، އައި.ޑީ ކާޑު، ގްރޭޑް އަދި ފޯނު ނަންބަރު ރަނގަޅަށް ފުރިހަމަކުރަންވާނެއެވެ.</li>
                   </ul>
               </div>
-
               <div className="info-section" style={{background: '#e8f5e9', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #2e7d32'}}>
                   <div className="info-title" style={{color: '#2e7d32', fontSize: '18px', marginBottom: '10px'}}>🪙 2. ކޮއިން ހޯދާނީ ކިހިނެއް؟</div>
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
@@ -835,7 +828,6 @@ export default function App() {
                       <li><b>ބޯނަސް ކޮއިން:</b> ބޯނަސް ހަބް އަދި ޙިފްޡު މުރާޖަޢާ މެދުވެރިކޮށް އިތުރު ކޮއިން ހޯދޭނެއެވެ.</li>
                   </ul>
               </div>
-
               <div className="info-section" style={{background: '#fff3e0', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #ff9800'}}>
                   <div className="info-title" style={{color: '#e65100', fontSize: '18px', marginBottom: '10px'}}>🎁 3. އިނާމު ފިހާރަ އަދި ޓިކެޓް ގަތުން</div>
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
@@ -843,7 +835,6 @@ export default function App() {
                       <li><b>ޗާންސް ބޮޑުކުރުން:</b> ކޮއިން ހުރިވަރަކުން އެއް އިނާމެއްގެ ގިނަ ޓިކެޓްވެސް ގަނެވިދާނެއެވެ. ގިނަ ޓިކެޓް ގަތް ވަރަކަށް އެ އިނާމެއް ލިބުމުގެ ފުރުޞަތު ބޮޑުވާނެއެވެ!</li>
                   </ul>
               </div>
-
               <button onClick={() => navigateTo('home')} style={{...styles.btn, background: '#0056b3', marginTop: '20px'}}>ހޯމް ޕޭޖަށް ދޭ</button>
           </div>
         </div>
@@ -857,7 +848,6 @@ export default function App() {
               <button className="close-btn" onClick={() => setShowWinnerCard(false)}>✕</button>
               <div className="celebration-banner">🎉 މަރުޙަބާ 🎉</div>
               <h3 style={{margin:'5px 0', fontSize:'16px'}}>މިއަދުގެ ނަސީބުވެރިޔާ</h3>
-              
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', margin: '10px 0' }}>
                   <h2 style={{color:'#2e7d32', margin: 0, fontSize: '24px'}}>{dailyWinner.username}</h2>
                   <div className={`heart-badge ${hasCongratulated ? 'clicked' : ''}`} onClick={handleCongratulate} title="Congratulate!">
@@ -865,7 +855,6 @@ export default function App() {
                   </div>
               </div>
               <p style={{fontSize:'14px', margin:'10px 0', fontWeight: 'bold'}}>{dailyWinner.prize}</p>
-              
               <button onClick={handleShareWinner} style={{...styles.btn, background: 'linear-gradient(135deg, #1976d2, #0056b3)', padding: '8px 15px', borderRadius: '25px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '10px'}}>
                   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                   ޝެއަރ ކުރައްވާ
@@ -1034,9 +1023,7 @@ export default function App() {
                 <div className="dash-menu-grid animate-card">
                     {isEnrolledInQuran && (
                         <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'quran_slip')} style={{background: 'linear-gradient(135deg, #FFD700, #FBC02D)', borderColor: '#F57F17'}}>
-                            <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            </div>
+                            <div className="dash-icon" style={{background: 'white', color: '#F57F17'}}><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
                             <div><p className="dash-menu-title" style={{color: '#333'}}>މަގޭ ޤުރުއާން ސްލިޕް (VIP)</p><p className="dash-menu-sub" style={{color: '#555', fontWeight: 'bold'}}>މުބާރާތުގެ މަޢުލޫމާތާއި މާކްސް</p></div>
                         </div>
                     )}
@@ -1053,7 +1040,6 @@ export default function App() {
                         <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ސުވާލު ކީސާ</p></div>
                     </div>
 
-                    {/* 🔥 NEW HIFZ CARD 🔥 */}
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'hifz')} style={{borderColor: '#8e24aa'}}>
                         <div className="dash-icon" style={{color: '#8e24aa', background: '#f3e5f5'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>
                         <div><p className="dash-menu-title" style={{color: '#8e24aa'}}>📖 ޙިފްޡު މުރާޖަޢާ</p><p className="dash-menu-sub">ސޫރަތް ކިޔައިދީގެން 50 ކޮއިން ހޯދާ!</p></div>
@@ -1100,19 +1086,22 @@ export default function App() {
                         </div>
                     </div>
 
-                    {/* 🧩 MINI PUZZLE */}
-                    {appSettings.puzzle_image_url && (
+                    {/* 🧩 DAILY EMOJI PUZZLE */}
+                    {todayPuzzle && (
                         <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
-                            <h4 style={{color: '#e65100', margin: '0 0 10px 0'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h4>
+                            <h4 style={{color: '#e65100', margin: '0 0 10px 0'}}>🧩 މިއަދުގެ ޕަޒްލް / ހިސާބު</h4>
                             <div style={{background: '#fff3e0', padding: '15px', borderRadius: '8px', border: '1px dashed #ffb74d'}}>
-                                <img src={appSettings.puzzle_image_url} alt="Puzzle" style={{width: '100%', borderRadius: '8px', marginBottom: '10px', maxHeight: '200px', objectFit: 'contain', background: '#fff'}} />
+                                
+                                <p className="ltr-text" style={{fontSize: '22px', textAlign: 'center', whiteSpace: 'pre-line', margin: '10px 0', lineHeight: '1.8', fontWeight: 'bold'}}>
+                                    {todayPuzzle.puzzle_text}
+                                </p>
                                 
                                 {todayClaims.some(c => c.task_type === 'puzzle') ? (
                                     <div style={{padding: '10px', background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold'}}>✅ ޖަވާބު ދިމާކޮށްފިން!</div>
                                 ) : (
                                     <>
-                                        <input value={puzzleInput} onChange={(e) => setPuzzleInput(e.target.value)} placeholder="ޖަވާބު ލިޔުއްވާ..." style={{...styles.input, marginBottom: '10px', fontSize: '13px'}} />
-                                        <button onClick={submitPuzzle} style={{...styles.btn, background: '#ff9800', padding: '8px', fontSize: '13px'}}>ޖަވާބު ފޮނުވާ (+{appSettings.puzzle_coins} 🪙)</button>
+                                        <input value={puzzleInput} onChange={(e) => setPuzzleInput(e.target.value)} placeholder="ޖަވާބު ލިޔުއްވާ..." style={{...styles.inputLtr, marginBottom: '10px', fontSize: '13px', textAlign: 'center'}} />
+                                        <button onClick={submitPuzzle} style={{...styles.btn, background: '#ff9800', padding: '8px', fontSize: '13px'}}>ޖަވާބު ފޮނުވާ (+{todayPuzzle.coins} 🪙)</button>
                                     </>
                                 )}
                             </div>
@@ -1493,7 +1482,7 @@ export default function App() {
   );
 }
 
-// 🔥 ADMIN PANEL WITH MARQUEE & HIFZ APPROVALS 🔥
+// 🔥 ADMIN PANEL WITH BULK PUZZLE UPLOAD 🔥
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
     appSettings, pendingClaims, fetchAppSettings,
@@ -1503,6 +1492,7 @@ function AdminPanel({
     const [adminTab, setAdminTab] = useState('students');
     const [editingQ, setEditingQ] = useState(null);
     const [bulkJSON, setBulkJSON] = useState('');
+    const [puzzleJSON, setPuzzleJSON] = useState('');
 
     const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
@@ -1513,8 +1503,19 @@ function AdminPanel({
     const saveAppSettings = async (e) => {
         e.preventDefault(); const d = Object.fromEntries(new FormData(e.target));
         await supabase.from('lhohinoor_app_settings').update(d).eq('id', 1);
-        showToast("ބޯނަސް ސެޓިންގްސް ސޭވްވެއްޖެ!", "success");
+        showToast("ސެޓިންގްސް ސޭވްވެއްޖެ!", "success");
         fetchAppSettings();
+    };
+
+    const handleBulkPuzzleUpload = async () => {
+        try {
+            const parsedData = JSON.parse(puzzleJSON);
+            if (!Array.isArray(parsedData)) return showToast("JSON ފޯމެޓް ނުބައި!", "error");
+            const { error } = await supabase.from('lhohinoor_daily_puzzles').insert(parsedData);
+            if (error) throw error;
+            showToast(`${parsedData.length} ޕަޒްލް ސޭވްވެއްޖެ!`, "success");
+            setPuzzleJSON('');
+        } catch (err) { showToast("މައްސަލައެއް: " + err.message, "error"); }
     };
 
     const approveClaim = async (id, coins) => {
@@ -1634,7 +1635,6 @@ function AdminPanel({
                 <div style={{ overflowX: 'auto' }}>
                     <form onSubmit={saveAppSettings} style={{...styles.form, minWidth: '600px', background: '#f5f5f5', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
                         
-                        {/* MARQUEE UPDATER */}
                         <h3 style={{color: '#d32f2f', marginTop: 0}}>📢 ނޯޓިސް ބޯޑު (Marquee)</h3>
                         <textarea name="marquee_text" defaultValue={appSettings.marquee_text} placeholder="ދުވަހުގެ ނޯޓިސް (ހޯމް ޕޭޖުގައި ދުވާނީ)" style={{...styles.input, height: '60px', resize: 'vertical', marginBottom: '20px'}} required />
 
@@ -1642,15 +1642,17 @@ function AdminPanel({
                         <textarea name="read_text" defaultValue={appSettings.read_text} placeholder="މިއަދުގެ ޙަދީޘް ނުވަތަ މަޢުލޫމާތު" style={{...styles.input, height: '80px', resize: 'vertical'}} required />
                         <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
                         <input name="read_coins" type="number" defaultValue={appSettings.read_coins} style={styles.inputLtr} required />
-
-                        <h3 style={{color: '#e65100', marginTop: '20px'}}>🧩 މި ހަފްތާގެ ޕަޒްލް</h3>
-                        <input name="puzzle_image_url" defaultValue={appSettings.puzzle_image_url} placeholder="ޕަޒްލް ފޮޓޯ ލިންކް (URL)" style={styles.inputLtr} />
-                        <input name="puzzle_answer" defaultValue={appSettings.puzzle_answer} placeholder="ރަނގަޅު ޖަވާބު" style={styles.input} />
-                        <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
-                        <input name="puzzle_coins" type="number" defaultValue={appSettings.puzzle_coins} style={styles.inputLtr} />
-
-                        <button type="submit" style={{...styles.btn, background: '#2e7d32', marginTop: '10px'}}>ސޭވް ބޯނަސް ސެޓިންގްސް</button>
+                        
+                        <button type="submit" style={{...styles.btn, background: '#2e7d32', marginTop: '10px'}}>ސޭވް ސެޓިންގްސް</button>
                     </form>
+
+                    {/* 🔥 EMOJI PUZZLE BULK UPLOAD 🔥 */}
+                    <div style={{...styles.form, minWidth: '600px', background: '#fff3e0', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
+                        <h3 style={{color: '#e65100', marginTop: '0'}}>🧩 ދުވަހުގެ ޕަޒްލް (Bulk Upload)</h3>
+                        <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި އިމޯޖީ ޕަޒްލްތައް ޕޭސްޓް ކުރައްވާ.</p>
+                        <textarea value={puzzleJSON} onChange={(e) => setPuzzleJSON(e.target.value)} style={{...styles.inputLtr, height: '150px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}} placeholder='[{"puzzle_date": "2026-03-12", "puzzle_text": "🍎 + 🍎 = 10\n🍎 + 🍌 = 8\n🍌 = ?", "answer": "3", "coins": 30}]' />
+                        <button type="button" onClick={handleBulkPuzzleUpload} style={{...styles.btn, background: '#ff9800', marginTop: '10px', maxWidth: '200px'}}>ޕަޒްލްތައް އަޕްލޯޑް ކުރޭ</button>
+                    </div>
 
                     <h3 style={{color: '#8e24aa'}}>📖 އެޕްރޫވް ކުރަންޖެހޭ ޓާސްކްތައް (Pending Approvals)</h3>
                     <div className="table-wrapper">
