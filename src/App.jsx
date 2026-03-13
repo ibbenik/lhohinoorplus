@@ -89,7 +89,6 @@ export default function App() {
   const [celebrationBadge, setCelebrationBadge] = useState(null);
   const [celebrationGift, setCelebrationGift] = useState(null); 
   const prevBadgeCountRef = useRef(0);
-  const prevUnlockedGiftsRef = useRef(-1);
 
   const [authMode, setAuthMode] = useState('login'); 
   const [loading, setLoading] = useState(false);
@@ -115,10 +114,13 @@ export default function App() {
   const [myOrders, setMyOrders] = useState([]);
 
   // 🔥 SETTINGS & BONUS STATES 🔥
-  const [appSettings, setAppSettings] = useState({ read_text: 'މިއަދުގެ ޙަދީޘް: ...', read_coins: 10, marquee_text: 'މިއަދުގެ ކުއިޒް ފެށިއްޖެ! ބައިވެރިވެލައްވާ!' });
+  const [appSettings, setAppSettings] = useState({ marquee_text: 'މިއަދުގެ ކުއިޒް ފެށިއްޖެ! ބައިވެރިވެލައްވާ!' });
   const [todayClaims, setTodayClaims] = useState([]);
+  
   const [todayPuzzle, setTodayPuzzle] = useState(null);
   const [puzzleInput, setPuzzleInput] = useState('');
+
+  const [todayReading, setTodayReading] = useState(null);
   
   const [behaviorInput, setBehaviorInput] = useState('ސޫރަތުލް މުލްކް');
   const [verifierInput, setVerifierInput] = useState('');
@@ -156,6 +158,7 @@ export default function App() {
     fetchLeaderboards(); 
     fetchGifts(); 
     fetchAppSettings();
+    fetchTodayReading(); // Fetch global reading for today
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) { setUser(session.user); routeUser(session.user); }
@@ -182,7 +185,12 @@ export default function App() {
       if (data) setAppSettings(data);
   };
 
-  // 🔥 NEW: LEVEL BASED PUZZLE FETCHING 🔥
+  const fetchTodayReading = async () => {
+      const { data } = await supabase.from('lhohinoor_daily_readings')
+          .select('*').eq('reading_date', getActiveQuizDate()).maybeSingle();
+      setTodayReading(data);
+  };
+
   const fetchTodayPuzzle = async (userGrade) => {
       let level = 'Easy';
       if (['Grade 6', 'Grade 7', 'Grade 8'].includes(userGrade)) level = 'Medium';
@@ -281,7 +289,7 @@ export default function App() {
         if (isMissing) { 
             navigateTo('profile_setup'); 
         } else {
-            fetchTodayPuzzle(data.grade); // Fetch puzzle ONLY after knowing the grade
+            fetchTodayPuzzle(data.grade);
             if (view !== 'quiz' && view !== 'math_quiz') navigateTo('dashboard');
         }
     } else {
@@ -750,7 +758,7 @@ export default function App() {
                       )}
                       {!isSpinning && !drawWinnerObj && spinName.includes('ކުއްޖަކު ނެތް') && (
                           <div style={{marginTop: '30px'}}>
-                              <button onClick={() => { setActiveDrawGift(null); setSpinName("ނަސީބުވެރިޔާ ހޯދަނީ..."); }} style={{...styles.btnSecondary, background: '#666', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>ފަހަތަށް</button>
+                              <button onClick={() => { setActiveDrawGift(null); setSpinName("ނަސީބުވެރިޔާ ഹോދަނީ..."); }} style={{...styles.btnSecondary, background: '#666', width: 'auto', padding: '10px 30px', fontSize: '18px'}}>ފަހަތަށް</button>
                           </div>
                       )}
                   </div>
@@ -838,7 +846,7 @@ export default function App() {
                   <ul className="info-list" style={{fontSize: '14px', lineHeight: '1.6', color: '#444'}}>
                       <li><b>ދުވަހުގެ ކުއިޒް:</b> %80 އިން ފާސްވުމުން <b>5 ކޮއިން</b>. ދުވާލަކު 2 ފަހަރު.</li>
                       <li><b>ސުވާލު ކީސާ:</b> 3 ސުވާލަށް ޖަވާބު ދިނުމުން <b>5 ކޮއިން</b>. ދުވާލަކު 5 ފަހަރު.</li>
-                      <li><b>ބޯނަސް ކޮއިން:</b> ބޯނަސް ހަބް އަދި ޙިފްޡު މުރާޖަޢާ މެދުވެރިކޮށް އިތުރު ކޮއިން ހޯދޭނެއެވެ.</li>
+                      <li><b>ބޯނަސް ކޮއިން:</b> ބޯނަސް ހަބް މެދުވެރިކޮށް އިތުރު ކޮއިން ހޯދޭނެއެވެ.</li>
                   </ul>
               </div>
               <div className="info-section" style={{background: '#fff3e0', padding: '15px', borderRadius: '10px', marginBottom: '15px', borderLeft: '4px solid #ff9800'}}>
@@ -891,7 +899,6 @@ export default function App() {
           
           <div style={styles.grid}>
             <div style={styles.card} className="animate-card">
-                {/* 🔥 UPDATED IMAGE URL 🔥 */}
                 <img src="https://ygexyftugtqcklnrlrgf.supabase.co/storage/v1/object/public/lhohinoor%20_images/lhohinoor%20cover.svg" alt="Quiz Cover" style={{...styles.cardImg, objectFit: 'cover', background: '#f8f9fa'}} loading="lazy" />
                 
                 <div className="marquee-wrapper">
@@ -1053,10 +1060,12 @@ export default function App() {
                         <div><p className="dash-menu-title">ކްލާސްތަކާއި މުބާރާތްތައް</p><p className="dash-menu-sub">ކުއިޒް، ޤުރުއާން، އަދި ސުވާލު ކީސާ</p></div>
                     </div>
 
+                    {/* 🔥 HIFZ CARD (DISABLED FOR NOW)
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'hifz')} style={{borderColor: '#8e24aa'}}>
                         <div className="dash-icon" style={{color: '#8e24aa', background: '#f3e5f5'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>
                         <div><p className="dash-menu-title" style={{color: '#8e24aa'}}>📖 ޙިފްޡު މުރާޖަޢާ</p><p className="dash-menu-sub">ސޫރަތް ކިޔައިދީގެން 50 ކޮއިން ހޯދާ!</p></div>
                     </div>
+                    */}
                     
                     <div className="dash-menu-btn" onClick={() => navigateTo('dashboard', 'bonus_hub')} style={{borderColor: '#4caf50'}}>
                         <div className="dash-icon" style={{color: '#4caf50', background: '#e8f5e9'}}><svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
@@ -1085,19 +1094,21 @@ export default function App() {
                     </div>
 
                     {/* 📚 READ & EARN */}
-                    <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
-                        <h4 style={{color: '#1976d2', margin: '0 0 10px 0'}}>📚 ކިޔާލާފައި ހޯދާ (Read & Earn)</h4>
-                        <div style={{background: '#f5f5f5', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #1976d2'}}>
-                            <p style={{fontSize: '14px', color: '#333', lineHeight: '1.6'}}>{appSettings.read_text}</p>
-                            <button 
-                                onClick={() => handleBonusClaim('read', appSettings.read_coins)} 
-                                disabled={todayClaims.some(c => c.task_type === 'read')}
-                                style={{...styles.btn, background: todayClaims.some(c => c.task_type === 'read') ? '#ccc' : '#1976d2', padding: '8px', fontSize: '13px', marginTop: '10px'}}
-                            >
-                                {todayClaims.some(c => c.task_type === 'read') ? '✅ މިއަދުގެ ބޯނަސް ނަގައިފިން' : `ކިޔައިފިން (+${appSettings.read_coins} 🪙)`}
-                            </button>
+                    {todayReading && (
+                        <div className="program-card" style={{marginBottom: '15px', textAlign: 'right', background: 'white'}}>
+                            <h4 style={{color: '#1976d2', margin: '0 0 10px 0'}}>📚 ކިޔާލާފައި ހޯދާ (Read & Earn)</h4>
+                            <div style={{background: '#f5f5f5', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #1976d2'}}>
+                                <p style={{fontSize: '14px', color: '#333', lineHeight: '1.6'}}>{todayReading.reading_text}</p>
+                                <button 
+                                    onClick={() => handleBonusClaim('read', todayReading.coins)} 
+                                    disabled={todayClaims.some(c => c.task_type === 'read')}
+                                    style={{...styles.btn, background: todayClaims.some(c => c.task_type === 'read') ? '#ccc' : '#1976d2', padding: '8px', fontSize: '13px', marginTop: '10px'}}
+                                >
+                                    {todayClaims.some(c => c.task_type === 'read') ? '✅ މިއަދުގެ ބޯނަސް ނަގައިފިން' : `ކިޔައިފިން (+${todayReading.coins} 🪙)`}
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* 🧩 DAILY EMOJI PUZZLE */}
                     {todayPuzzle && (
@@ -1123,8 +1134,8 @@ export default function App() {
                 </div>
             )}
 
-            {/* 📖 NEW HIFZ VIEW 📖 */}
-            {dashView === 'hifz' && (
+            {/* 📖 NEW HIFZ VIEW (DISABLED FOR NOW) 📖 */}
+            {dashView === 'hifz' && false && (
                 <div style={{...styles.card, background: '#f3e5f5'}} className="animate-card">
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e1bee7', paddingBottom: '10px', marginBottom: '15px'}}>
                         <button onClick={() => navigateTo('dashboard', 'overview')} style={{...styles.btnSecondary, background: 'transparent', color: '#8e24aa', width: 'auto', padding: 0}}>← ފަހަތަށް</button>
@@ -1495,7 +1506,7 @@ export default function App() {
   );
 }
 
-// 🔥 ADMIN PANEL WITH MARQUEE & HIFZ APPROVALS & FIXED PARTNER TAB 🔥
+// 🔥 ADMIN PANEL WITH READ & EARN BULK UPLOAD 🔥
 function AdminPanel({ 
     allStudents, allQuestions, allPartners, partnerRequestsList, allGifts,
     appSettings, pendingClaims, fetchAppSettings,
@@ -1506,6 +1517,7 @@ function AdminPanel({
     const [editingQ, setEditingQ] = useState(null);
     const [bulkJSON, setBulkJSON] = useState('');
     const [puzzleJSON, setPuzzleJSON] = useState('');
+    const [readingJSON, setReadingJSON] = useState('');
 
     const saveQuestion = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); if (d.correct_option !== d.option_1 && d.correct_option !== d.option_2 && d.correct_option !== d.option_3) return showToast("ޖަވާބު ދިމައެއްނުވޭ", "error"); if (!d.quiz_date) d.quiz_date = getActiveQuizDate(); if (editingQ) await supabase.from('lhohinoor_questions').update(d).eq('id', editingQ.id); else await supabase.from('lhohinoor_questions').insert([d]); setEditingQ(null); e.target.reset(); loadAdminData(); };
     const deleteQuestion = async (id) => { if(window.confirm("މި ސުވާލު ފޮހެލަންވީތަ؟")) { await supabase.from('lhohinoor_questions').delete().eq('id', id); loadAdminData(); } };
@@ -1531,6 +1543,17 @@ function AdminPanel({
             if (error) throw error;
             showToast(`${parsedData.length} ޕަޒްލް ސޭވްވެއްޖެ!`, "success");
             setPuzzleJSON('');
+        } catch (err) { showToast("މައްސަލައެއް: " + err.message, "error"); }
+    };
+
+    const handleBulkReadingUpload = async () => {
+        try {
+            const parsedData = JSON.parse(readingJSON);
+            if (!Array.isArray(parsedData)) return showToast("JSON ފޯމެޓް ނުބައި!", "error");
+            const { error } = await supabase.from('lhohinoor_daily_readings').insert(parsedData);
+            if (error) throw error;
+            showToast(`${parsedData.length} ލިޔުން ސޭވްވެއްޖެ!`, "success");
+            setReadingJSON('');
         } catch (err) { showToast("މައްސަލައެއް: " + err.message, "error"); }
     };
 
@@ -1650,18 +1673,18 @@ function AdminPanel({
             {adminTab === 'bonus' && (
                 <div style={{ overflowX: 'auto' }}>
                     <form onSubmit={saveAppSettings} style={{...styles.form, minWidth: '600px', background: '#f5f5f5', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
-                        
-                        {/* MARQUEE UPDATER */}
                         <h3 style={{color: '#d32f2f', marginTop: 0}}>📢 ނޯޓިސް ބޯޑު (Marquee)</h3>
-                        <textarea name="marquee_text" defaultValue={appSettings.marquee_text} placeholder="ދުވަހުގެ ނޯޓިސް (ހޯމް ޕޭޖުގައި ދުވާނީ)" style={{...styles.input, height: '60px', resize: 'vertical', marginBottom: '20px'}} required />
-
-                        <h3 style={{color: '#1976d2', marginTop: 0}}>📚 ރީޑް އެންޑް އާރން (Read & Earn)</h3>
-                        <textarea name="read_text" defaultValue={appSettings.read_text} placeholder="މިއަދުގެ ޙަދީޘް ނުވަތަ މަޢުލޫމާތު" style={{...styles.input, height: '80px', resize: 'vertical'}} required />
-                        <label style={{fontSize: '12px'}}>ލިބޭ ކޮއިން އަދަދު:</label>
-                        <input name="read_coins" type="number" defaultValue={appSettings.read_coins} style={styles.inputLtr} required />
-                        
-                        <button type="submit" style={{...styles.btn, background: '#2e7d32', marginTop: '10px'}}>ސޭވް ސެޓިންގްސް</button>
+                        <textarea name="marquee_text" defaultValue={appSettings.marquee_text} placeholder="ދުވަހުގެ ނޯޓިސް (ހޯމް ޕޭޖުގައި ދުވާނީ)" style={{...styles.input, height: '60px', resize: 'vertical', marginBottom: '10px'}} required />
+                        <button type="submit" style={{...styles.btn, background: '#2e7d32', maxWidth: '200px'}}>ސޭވް ސެޓިންގްސް</button>
                     </form>
+
+                    {/* 🔥 READ AND EARN BULK UPLOAD 🔥 */}
+                    <div style={{...styles.form, minWidth: '600px', background: '#e3f2fd', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
+                        <h3 style={{color: '#1976d2', marginTop: '0'}}>📚 ރީޑް އެންޑް އާރން (Bulk Upload)</h3>
+                        <p style={{fontSize: '13px', color: '#666', marginBottom: '10px'}}>ތިރީގައިވާ ފޮއްޓަށް JSON ފޯމެޓުގައި ކިޔާނެ ލިޔުންތައް ޕޭސްޓް ކުރައްވާ.</p>
+                        <textarea value={readingJSON} onChange={(e) => setReadingJSON(e.target.value)} style={{...styles.inputLtr, height: '150px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px'}} placeholder='[{"reading_date": "2026-03-12", "reading_text": "ރަސޫލާ ޙަދީޘް ކުރެއްވިއެވެ...", "coins": 10}]' />
+                        <button type="button" onClick={handleBulkReadingUpload} style={{...styles.btn, background: '#1976d2', marginTop: '10px', maxWidth: '200px'}}>ލިޔުންތައް އަޕްލޯޑް ކުރޭ</button>
+                    </div>
 
                     {/* 🔥 EMOJI PUZZLE BULK UPLOAD 🔥 */}
                     <div style={{...styles.form, minWidth: '600px', background: '#fff3e0', padding: '20px', borderRadius: '10px', marginBottom: '20px'}}>
@@ -1671,6 +1694,7 @@ function AdminPanel({
                         <button type="button" onClick={handleBulkPuzzleUpload} style={{...styles.btn, background: '#ff9800', marginTop: '10px', maxWidth: '200px'}}>ޕަޒްލްތައް އަޕްލޯޑް ކުރޭ</button>
                     </div>
 
+                    {/* HIFZ APPROVALS (STILL ACTIVE IN ADMIN SO IF YOU RE-ENABLE IT YOU CAN MANAGE IT) */}
                     <h3 style={{color: '#8e24aa'}}>📖 އެޕްރޫވް ކުރަންޖެހޭ ޓާސްކްތައް (Pending Approvals)</h3>
                     <div className="table-wrapper">
                         <table>
@@ -1723,7 +1747,6 @@ function AdminPanel({
                 </div>
             )}
 
-            {/* 🔥 FIXED PARTNERS TAB (No more blank screens) 🔥 */}
             {adminTab === 'partners' && (
                 <div style={{ overflowX: 'auto', paddingBottom: '10px' }}>
                     <form onSubmit={savePartner} style={{...styles.form, marginBottom:'20px', minWidth: '500px', background: '#e8f5e9', padding: '20px', borderRadius: '10px'}}>
